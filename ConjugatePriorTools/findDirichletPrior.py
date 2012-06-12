@@ -1,15 +1,35 @@
 #!/usr/bin/python
-
+#
 # Finding the optimal dirichlet prior from counts
 # By: Max Sklar
 # @maxsklar
+# https://github.com/maxsklar
 
-# <INSTRUCTIONS GO HERE>
+# A sample of a file to pipe into this python script is given by test.csv
+
+# ex
+# cat test.csv | ./finaDirichletPrior.py --sampleRate 1
+
+# Paper describing the basic formula:
+# http://research.microsoft.com/en-us/um/people/minka/papers/dirichlet/minka-dirichlet.pdf
+
+# Each columns is a different category, and it is assumed that the counts are pulled out of
+# a different distribution for each row.
+# The distribution for each row is pulled from a Dirichlet distribution; this script finds that
+# dirichlet which maximizes the probability of the output.
+
+# Parameter: the first param is the sample rate.  This is to avoid using the full data set when we
+# have huge amounts of data.
 
 import sys
 import csv
 import math
 import random
+from optparse import OptionParser
+
+parser = OptionParser()
+parser.add_option('-s', '--sampleRate', dest='sampleRate', default='1', help='Randomly sample this fraction of rows')
+(options, args) = parser.parse_args()
 
 # think of this as log((x + k -1)! / (x+1)!)
 # or: log(x) + log(x+1) + log(x+2) + ... + log(x+k-1)
@@ -81,37 +101,8 @@ def getPredictedStep(hConst, hDiag, gradient):
 	b = numSum / ((1.0/hConst) + denSum)
 
 	retVal = [0]*n
-	for i in range(0, n): retVal[i] = (gradient[i] - b) / hDiag[i]
+	for i in range(0, n): retVal[i] = (b - gradient[i]) / hDiag[i]
 	return retVal
-
-#####
-# Load Data
-#####
-
-#Optional parameter: sample rate.  This gets a random sample from the data
-sampleRate = 1
-if (len(sys.argv) > 1): sampleRate = float(sys.argv[1])
-
-csv.field_size_limit(1000000000)
-reader = csv.reader(sys.stdin, delimiter='\t')
-print "Loading data"
-allData = []
-i = 0
-
-maxRowLength = 0
-for row in reader:
-	i += 1
-	maxRowLength = max(maxRowLength, len(row))
-	
-	if (random.random() < sampleRate):
-		data = map(int, row)
-		allData.append(data)
-
-	if (i % 1000000) == 0: print "Loading Data", i
-	
-print "all data loaded into memory"
-
-priors = [1.0 / maxRowLength]*maxRowLength
 
 #The priors and data are global, so we don't need to pass them in
 def getTotalLoss(trialPriors):
@@ -130,13 +121,12 @@ def getTotalGradient():
 	
 	return totalGradient
 	
-#The priors and data are global, so we don't need to pass them in	
-def predictStep(gradient):
+def predictStepUsingHessian(sample, gradient, priors):
 	n = len(priors)
 	totalHConst = 0
 	totalHDiag = [0]*n
 	
-	for data in allData:
+	for data in sample:
 		hConst = priorHessianConst(priors, data)
 		hDiag = priorHessianDiag(priors, data)
 		
@@ -152,11 +142,36 @@ def testTrialPriors(trialPriors):
 		if trialPriors[i] <= 0: 
 			return False, float("inf")
 		
-	loss = getTotalLoss(trialPriors)
-	return loss < currentLoss, loss
-			
+	return getTotalLoss(trialPriors)
+
+#####
+# Load Data
+#####
+
+csv.field_size_limit(1000000000)
+reader = csv.reader(sys.stdin, delimiter='\t')
+print "Loading data"
+allData = []
+i = 0
+
+numCategories = 0
+for row in reader:
+	i += 1
+	numCategories = max(numCategories, len(row))
+
+	if (random.random() < options.sampleRate):
+		data = map(int, row)
+		allData.append(data)
+
+	if (i % 1000000) == 0: print "Loading Data", i
+
+print "all data loaded into memory"
+
+priors = [1.0 / numCategories]*numCategories
+
+# Let the learning begin!!			
 learnRate = 100
-momentum = [0]*maxRowLength
+momentum = [0]*numCategories
 
 #Only step in a positive direction, get the current best loss.
 currentLoss = getTotalLoss(priors)
@@ -171,20 +186,21 @@ while(count < 10000):
 	
 	count += 1
 	end = "USE HESSIAN"
-	if (not accepted2): end = "Learn: " + str(learnRate) + "\tMomentum: " + str(momentum)
-	print  count, ": Loss: ", (currentLoss / len(allData)), ", Priors: ", priors, end
+	if (not accepted2): end = "Learn: " + str(learnRate) + ", Momentum: " + str(momentum)
+	print  count, "Loss: ", (currentLoss / len(allData)), ", Priors: ", priors, "," + end
 	
 	#Get the data for taking steps
 	gradient = getTotalGradient()
-	trialStep = predictStep(gradient)
+	trialStep = predictStepUsingHessian(allData, gradient, priors)
 	
 	#First, try the second order method
 	trialPriors = [0]*len(priors)
-	for i in range(0, len(priors)): trialPriors[i] = priors[i] - trialStep[i]
+	for i in range(0, len(priors)): trialPriors[i] = priors[i] + trialStep[i]
 	
-	accepted2, loss = testTrialPriors(trialPriors)
+	loss = testTrialPriors(trialPriors)
 	
-	if accepted2:
+	accepted2 = loss < currentLoss
+	if loss < currentLoss:
 		currentLoss = loss
 		priors = trialPriors
 		continue
@@ -194,7 +210,8 @@ while(count < 10000):
 	trialPriors = [0]*len(priors)
 	for i in range(0, len(priors)): trialPriors[i] = priors[i] + learnRate*gradient[i] + momentum[i]
 	
-	accepted, loss = testTrialPriors(trialPriors)
+	loss = testTrialPriors(trialPriors)
+	accepted = loss < currentLoss
 	
 	if (accepted):
 		currentLoss = loss
@@ -205,19 +222,20 @@ while(count < 10000):
 	
 	#Lower the learning rate until it's accepted
 	for i in range(0, len(priors)): momentum[i] = 0
+	
 	while(not accepted):
 		learnRate /= learnRateChange
 		trialPriors = [0]*len(priors)
 		for i in range(0, len(priors)): trialPriors[i] = priors[i] + learnRate*gradient[i]
-		accepted, loss = testTrialPriors(trialPriors)
-		if (not accepted) and (learnRate < 2**(-30)): break
+		loss = testTrialPriors(trialPriors)
+		if (loss < currentLoss): break
+		if (learnRate < 2**(-40)): break
 		
-	if accepted: 
+	if learnRate > 2**(-40): 
 		currentLoss = loss
 		priors = trialPriors
 		for i in range(0, len(priors)): momentum[i] = learnRate*gradient[i]
 	else:
-		print
 		print "Converged"
 		break
 		
