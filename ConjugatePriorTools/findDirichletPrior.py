@@ -5,6 +5,8 @@
 # @maxsklar
 # https://github.com/maxsklar
 
+# Copyright 2012 Max Sklar
+
 # A sample of a file to pipe into this python script is given by test.csv
 
 # ex
