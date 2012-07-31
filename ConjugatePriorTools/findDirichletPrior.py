@@ -161,7 +161,7 @@ for row in reader:
 	i += 1
 	numCategories = max(numCategories, len(row))
 
-	if (random.random() < options.sampleRate):
+	if (random.random() < float(options.sampleRate)):
 		data = map(int, row)
 		allData.append(data)
 
