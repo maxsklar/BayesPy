@@ -27,124 +27,96 @@ import sys
 import csv
 import math
 import random
+import time
 from optparse import OptionParser
 
+startTime = time.time()
 parser = OptionParser()
 parser.add_option('-s', '--sampleRate', dest='sampleRate', default='1', help='Randomly sample this fraction of rows')
+parser.add_option('-K', '--numCategories', dest='K', default='2', help='The number of (tab separated) categories that are being counted')
 (options, args) = parser.parse_args()
-
-# think of this as log((x + k -1)! / (x+1)!)
-# or: log(x) + log(x+1) + log(x+2) + ... + log(x+k-1)
-def partialLogSums(x, k): return sum(map(lambda i: math.log(x + i), range(0, k)))
-
-# This is the derivative of partial Log Sums
-# 1/x + 1/(x+1) + 1/(x+2) + ... + 1/(x+k-1)	
-def partialHarmonic(x, k): return sum(map(lambda i: 1.0 / (x + i), range(0, k)))
-
-# This is the second derivative of partial Log Sums
-# -1/x^2 + -1/(x+1)^2 + -1/(x+2)^2 + ... + -1/(x+k-1)^2
-def partialHarmonicPrime(x, k): return sum(map(lambda i: -1.0 / (x + i)**2, range(0, k)))
+K = int(options.K)
 
 #Find the log probability that we see a certain set of data
 # give our prior.
-def dirichLogProb(priorList, dataList):
-	totalPrior = sum(priorList)
-	totalData = sum(dataList)
+def dirichLogProb(priorList, uMatrix, vVector):
+	total = 0.0
+	for k in range(0, K):
+		for i in range(0, len(uMatrix[k])):
+			total += uMatrix[k][i]*math.log(priorList[k] + i)
 	
-	total = 0
-	total -= partialLogSums(totalPrior, totalData)
-	total += partialLogSums(1, totalData)
-	for i in range(0, len(dataList)):
-		total += partialLogSums(priorList[i], dataList[i])
-		total -= partialLogSums(1, dataList[i])
-	
+	sumPrior = sum(priorList)
+	for i in range(0, len(vVector)):
+		total -= vVector[i] * math.log(sumPrior + i)
+			
 	return total
 
 #Gives the derivative with respect to the log of prior.  This will be used to adjust the loss
-def priorGradient(priorList, dataList):
-	totalPrior = sum(priorList)
-	totalData = sum(dataList)
+def priorGradient(priorList, uMatrix, vVector):
 	
-	n = len(priorList)
-	retVal = [0]*n
+	termToSubtract = 0
+	for i in range(0, len(vVector)):
+		termToSubtract += float(vVector[i]) / (sum(priorList) + i)
 	
-	for i in range(0, n):
-		retVal[i] -= partialHarmonic(totalPrior, totalData) 
-		retVal[i] += partialHarmonic(priorList[i], dataList[i])
+	retVal = [0]*K
+	for j in range(0, K):
+		for i in range(0, len(uMatrix[j])):
+			retVal[j] += float(uMatrix[j][i]) / (priorList[j] + i)
+	
+	for j in range(0, K):
+		retVal[j] -= termToSubtract
 		
 	return retVal
 
 #The hessian is actually the sum of two matrices: a diagonal matrix and a constant-value matrix.
 #We'll write two functions to get both
-def priorHessianConst(priorList, dataList):
-	totalPrior = sum(priorList)
-	totalData = sum(dataList)
-	return -1* partialHarmonicPrime(totalPrior, totalData)
+def priorHessianConst(priorList, vVector):
+	total = 0
+	for i in range(0, len(vVector)):
+		total += float(vVector[i]) / (sum(priorList) + i)**2
+	return total
 
-def priorHessianDiag(priorList, dataList):
-	n = len(priorList)
-	retVal = [0]*n
-	for i in range(0, n):
-		retVal[i] += partialHarmonicPrime(priorList[i], dataList[i])
+def priorHessianDiag(priorList, uMatrix):
+	retVal = [0]*K
+	for k in range(0, K):
+		for i in range(0, len(uMatrix[k])):
+			retVal[k] -= uMatrix[k][i] / (priorList[k] + i)**2
 	return retVal
+
 	
 # Compute the next value to try here
 # http://research.microsoft.com/en-us/um/people/minka/papers/dirichlet/minka-dirichlet.pdf (eq 18)
 def getPredictedStep(hConst, hDiag, gradient):
-	n = len(gradient)
-	
 	numSum = 0.0
-	for i in range(0, n):
+	for i in range(0, K):
 		numSum += gradient[i] / hDiag[i]
 	
 	denSum = 0.0
-	for i in range(0, n): denSum += 1.0 / hDiag[i]
+	for i in range(0, K): denSum += 1.0 / hDiag[i]
 	
 	b = numSum / ((1.0/hConst) + denSum)
 
-	retVal = [0]*n
-	for i in range(0, n): retVal[i] = (b - gradient[i]) / hDiag[i]
+	retVal = [0]*K
+	for i in range(0, K): retVal[i] = (b - gradient[i]) / hDiag[i]
 	return retVal
 
 #The priors and data are global, so we don't need to pass them in
-def getTotalLoss(trialPriors):
-	totalLoss = 0	
-	for data in allData:
-		totalLoss += -1*dirichLogProb(trialPriors, data)
-	return totalLoss
-
-def getTotalGradient():
-	n = len(priors)
-	totalGradient = [0]*n
-		
-	for data in allData:
-		gradient = priorGradient(priors, data)
-		for i in range(0, n): totalGradient[i] += gradient[i]
+def getTotalLoss(trialPriors, uMatrix, vVector):
+	return -1*dirichLogProb(trialPriors, uMatrix, vVector)
 	
-	return totalGradient
-	
-def predictStepUsingHessian(sample, gradient, priors):
-	n = len(priors)
-	totalHConst = 0
-	totalHDiag = [0]*n
-	
-	for data in sample:
-		hConst = priorHessianConst(priors, data)
-		hDiag = priorHessianDiag(priors, data)
-		
-		totalHConst += hConst
-		for i in range(0, n): totalHDiag[i] += hDiag[i]
-			
+def predictStepUsingHessian(gradient, priors):
+	totalHConst = priorHessianConst(priors, vVector)
+	totalHDiag = priorHessianDiag(priors, uMatrix)		
 	return getPredictedStep(totalHConst, totalHDiag, gradient)
 
 # Returns whether it's a good step, and the loss	
-def testTrialPriors(trialPriors):
+def testTrialPriors(trialPriors, uMatrix, vVector):
 	n = len(trialPriors)
 	for i in range(0, n): 
 		if trialPriors[i] <= 0: 
 			return False, float("inf")
 		
-	return getTotalLoss(trialPriors)
+	return getTotalLoss(trialPriors, uMatrix, vVector)
 
 #####
 # Load Data
@@ -153,30 +125,50 @@ def testTrialPriors(trialPriors):
 csv.field_size_limit(1000000000)
 reader = csv.reader(sys.stdin, delimiter='\t')
 print "Loading data"
-allData = []
-i = 0
+priors = [0.]*K
 
-numCategories = 0
+# Special data vector
+uMatrix = []
+for i in range(0, K): uMatrix.append([])
+vVector = []
+
+i = 0
 for row in reader:
 	i += 1
-	numCategories = max(numCategories, len(row))
 
 	if (random.random() < float(options.sampleRate)):
 		data = map(int, row)
-		allData.append(data)
+		if (len(data) != K):
+			print "Error: there are " + str(K) + " categories, but line has " + str(len(data)) + " counts."
+			print "line " + str(i) + ": " + str(data)
+		
+		sumData = sum(data)
+		weightForMean = 1.0 / (1.0 + sumData)
+		for i in range(0, K): 
+			priors[i] += data[i] * weightForMean
+			uVector = uMatrix[i]
+			for j in range(0, data[i]):
+				if (len(uVector) == j): uVector.append(0)
+				uVector[j] += 1
+			
+		for j in range(0, sumData):
+			if (len(vVector) == j): vVector.append(0)
+			vVector[j] += 1
 
 	if (i % 1000000) == 0: print "Loading Data", i
 
 print "all data loaded into memory"
 
-priors = [1.0 / numCategories]*numCategories
+initPriorWeight = 1
+priorSum = sum(priors)
+for i in range(0, K): priors[i] /= initPriorWeight * priorSum
 
 # Let the learning begin!!			
 learnRate = 100
-momentum = [0]*numCategories
+momentum = [0]*K
 
 #Only step in a positive direction, get the current best loss.
-currentLoss = getTotalLoss(priors)
+currentLoss = getTotalLoss(priors, uMatrix, vVector)
 
 learnRateChange = 1.5
 momentumDecay = .9
@@ -189,18 +181,17 @@ while(count < 10000):
 	count += 1
 	end = "USE HESSIAN"
 	if (not accepted2): end = "Learn: " + str(learnRate) + ", Momentum: " + str(momentum)
-	print  count, "Loss: ", (currentLoss / len(allData)), ", Priors: ", priors, "," + end
+	print  count, "Loss: ", currentLoss, ", Priors: ", priors, "," + end
 	
 	#Get the data for taking steps
-	gradient = getTotalGradient()
-	trialStep = predictStepUsingHessian(allData, gradient, priors)
+	gradient = priorGradient(priors, uMatrix, vVector)
+	trialStep = predictStepUsingHessian(gradient, priors)
 	
 	#First, try the second order method
 	trialPriors = [0]*len(priors)
 	for i in range(0, len(priors)): trialPriors[i] = priors[i] + trialStep[i]
 	
-	loss = testTrialPriors(trialPriors)
-	
+	loss = testTrialPriors(trialPriors, uMatrix, vVector)
 	accepted2 = loss < currentLoss
 	if loss < currentLoss:
 		currentLoss = loss
@@ -212,9 +203,8 @@ while(count < 10000):
 	trialPriors = [0]*len(priors)
 	for i in range(0, len(priors)): trialPriors[i] = priors[i] + learnRate*gradient[i] + momentum[i]
 	
-	loss = testTrialPriors(trialPriors)
+	loss = testTrialPriors(trialPriors, uMatrix, vVector)
 	accepted = loss < currentLoss
-	
 	if (accepted):
 		currentLoss = loss
 		priors = trialPriors
@@ -229,7 +219,7 @@ while(count < 10000):
 		learnRate /= learnRateChange
 		trialPriors = [0]*len(priors)
 		for i in range(0, len(priors)): trialPriors[i] = priors[i] + learnRate*gradient[i]
-		loss = testTrialPriors(trialPriors)
+		loss = testTrialPriors(trialPriors, uMatrix, vVector)
 		if (loss < currentLoss): break
 		if (learnRate < 2**(-40)): break
 		
@@ -243,6 +233,11 @@ while(count < 10000):
 		
 		
 print "Final priors: ", priors
-print "Final average loss:", getTotalLoss(priors) / len(allData)
+print "Final average loss:", getTotalLoss(priors, uMatrix, vVector)
+
+
+endTime = time.time()
+totalTime = endTime - startTime
+print "Total Time: " + str(totalTime)
 	
 	

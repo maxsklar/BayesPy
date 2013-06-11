@@ -38,23 +38,20 @@ def partialHarmonic(x, k): return sum(map(lambda i: 1.0 / (x + i), range(0, k)))
 # -1/x^2 + -1/(x+1)^2 + -1/(x+2)^2 + ... + -1/(x+k-1)^2
 def partialHarmonicPrime(x, k): return sum(map(lambda i: -1.0 / (x + i)**2, range(0, k)))
 
-#Find the log probability that we see a certain set of data
-# give our prior.
-def dirichLogProb(priorList, dataList):
+# Define an energy-function to measure a dirichlet prior against data
+def dirichletEnergy(priorList, dataList):
 	totalPrior = sum(priorList)
 	totalData = sum(dataList)
 	
 	total = 0
-	total -= partialLogSums(totalPrior, totalData)
-	total += partialLogSums(1, totalData)
+	total += partialLogSums(totalPrior, totalData)
 	for i in range(0, len(dataList)):
-		total += partialLogSums(priorList[i], dataList[i])
-		total -= partialLogSums(1, dataList[i])
+		total -= partialLogSums(priorList[i], dataList[i])
 	
 	return total
 
-#Gives the derivative with respect to the log of prior.  This will be used to adjust the loss
-def priorGradient(priorList, dataList):
+# Gives the derivative with respect to the energy
+def dirichletEnergyGradient(priorList, dataList):
 	totalPrior = sum(priorList)
 	totalData = sum(dataList)
 	
@@ -62,23 +59,9 @@ def priorGradient(priorList, dataList):
 	retVal = [0]*n
 	
 	for i in range(0, n):
-		retVal[i] -= partialHarmonic(totalPrior, totalData) 
-		retVal[i] += partialHarmonic(priorList[i], dataList[i])
+		retVal[i] += partialHarmonic(totalPrior, totalData) 
+		retVal[i] -= partialHarmonic(priorList[i], dataList[i])
 		
-	return retVal
-
-#The hessian is actually the sum of two matrices: a diagonal matrix and a constant-value matrix.
-#We'll write two functions to get both
-def priorHessianConst(priorList, dataList):
-	totalPrior = sum(priorList)
-	totalData = sum(dataList)
-	return -1* partialHarmonicPrime(totalPrior, totalData)
-
-def priorHessianDiag(priorList, dataList):
-	n = len(priorList)
-	retVal = [0]*n
-	for i in range(0, n):
-		retVal[i] += partialHarmonicPrime(priorList[i], dataList[i])
 	return retVal
 	
 # Compute the next value to try here
@@ -99,19 +82,19 @@ def getPredictedStep(hConst, hDiag, gradient):
 	for i in range(0, n): retVal[i] = (b - gradient[i]) / hDiag[i]
 	return retVal
 
-def getTotalLoss(trialPriors, dataPoints):
-	totalLoss = 0	
-	for weight, dataPoint in dataPoints:
-		totalLoss += -1*weight*dirichLogProb(trialPriors, dataPoint)
-	return totalLoss
+def getTotalEnergy(priors, dataPoints):
+	currentEnergy = 0
+	for sample in dataPoints: 
+		currentEnergy += dirichletEnergy(priors, sample)
+	return currentEnergy
 
 def getTotalGradient(priors, dataPoints):
 	n = len(priors)
 	totalGradient = [0]*n
 		
-	for weight, data in dataPoints:
-		gradient = priorGradient(priors, data)
-		for i in range(0, n): totalGradient[i] += weight*gradient[i]
+	for data in dataPoints:
+		gradient = dirichletEnergyGradient(priors, data)
+		for i in range(0, n): totalGradient[i] += gradient[i]
 	
 	return totalGradient
 	
@@ -163,79 +146,42 @@ for row in reader:
 
 print "all data loaded into memory"
 
-def learnDirichletDistribution(dataPoints, maxIter):
-	priors = [1.0 / numCategories]*numCategories
+def findNewPrior(prior, dataSample, learnRate):
+	trialPriors = [0]*numCategories
+	gradient = getTotalGradient(prior, dataSample)
+	for i in range(0, len(prior)): trialPriors[i] = prior[i] - learnRate*gradient[i]
+	return trialPriors
 
-	learnRate = 100
-	momentum = [0]*numCategories
+def adjustDirichletDistribution(prior, responsibility, dataPoints):
+	learnRate = 0.005
+	
+	dataSample = []
+	for i in range(0, 50): dataSample.append(pullRandomDataPoint(responsibility, dataPoints))
 
-	#Only step in a positive direction, get the current best loss.
-	currentLoss = getTotalLoss(priors, dataPoints)
+	# Calculate the currentEnergy
+	currentEnergy = getTotalEnergy(prior, dataPoints)
+	
+	# Calculate the gradient
+	newPrior = findNewPrior(prior, dataSample, learnRate)
+	
+	# See if it worked:
+	newEnergy = getTotalEnergy(newPrior, dataPoints)
+	energyDiff = newEnergy - currentEnergy
+	
+	if (energyDiff < 0): return newPrior
+	return prior
 
-	learnRateChange = 1.5
-	momentumDecay = .9
-
-	mixer = 1
-	count = 0
-	accepted2 = False
-	while(count < maxIter):
+def pullRandomDataPoint(responsibility, dataPoints):
+	choice = random.uniform(0, sum(responsibility))
 	
-		count += 1
-		end = "USE HESSIAN"
-		if (not accepted2): end = "Learn: " + str(learnRate) + ", Momentum: " + str(momentum)
-		print  count, "Loss: ", (currentLoss / len(dataPoints)), ", Priors: ", priors, "," + end
+	responsibilityCDF = 0
+	for i in range(0, len(dataPoints)):
+		responsibilityCDF += responsibility[i]
+		if choice <= responsibilityCDF: return dataPoints[i]
 	
-		#Get the data for taking steps
-		gradient = getTotalGradient(priors, dataPoints)
-		trialStep = predictStepUsingHessian(dataPoints, gradient, priors)
+	print "BUG IN PULL RANDOM DATA POINT"
+	exit()
 	
-		#First, try the second order method
-		trialPriors = [0]*len(priors)
-		for i in range(0, len(priors)): trialPriors[i] = priors[i] + trialStep[i]
-	
-		loss = testTrialPriors(trialPriors, dataPoints)
-	
-		accepted2 = loss < currentLoss
-		if loss < currentLoss:
-			currentLoss = loss
-			priors = trialPriors
-			continue
-		
-		#It didn't work, so we're going to fall back to gradient methods:
-	
-		trialPriors = [0]*len(priors)
-		for i in range(0, len(priors)): trialPriors[i] = priors[i] + learnRate*gradient[i] + momentum[i]
-	
-		loss = testTrialPriors(trialPriors, dataPoints)
-		accepted = loss < currentLoss
-	
-		if (accepted):
-			currentLoss = loss
-			priors = trialPriors
-			learnRate *= learnRateChange
-			for i in range(0, len(priors)): momentum[i] = momentumDecay*momentum[i] + learnRate*gradient[i] + momentum[i]
-			continue
-	
-		#Lower the learning rate until it's accepted
-		for i in range(0, len(priors)): momentum[i] = 0
-	
-		while(not accepted):
-			learnRate /= learnRateChange
-			trialPriors = [0]*len(priors)
-			for i in range(0, len(priors)): trialPriors[i] = priors[i] + learnRate*gradient[i]
-			loss = testTrialPriors(trialPriors, dataPoints)
-			if (loss < currentLoss): break
-			if (learnRate < 2**(-40)): break
-		
-		if learnRate > 2**(-40): 
-			currentLoss = loss
-			priors = trialPriors
-			for i in range(0, len(priors)): momentum[i] = learnRate*gradient[i]
-		else:
-			print "Converged"
-			break
-	
-	return {"priors": priors, "avgLoss": getTotalLoss(priors, dataPoints) / len(dataPoints)}
 
 # Returns K data lists		
 def assignResponsibilitiesToData(dataPoints, priorLists):
@@ -243,55 +189,40 @@ def assignResponsibilitiesToData(dataPoints, priorLists):
 	k = int(options.k)
 	for i in range(0, k): dataResponsibilityLists.append([])
 	for data in dataPoints:
-		resp = map(lambda x: math.exp(dirichLogProb(x, data)), priorLists)
+		resp = map(lambda x: math.exp(-1 * dirichletEnergy(x, data)), priorLists)
 		totalWeight = sum(resp)
 		for i in range(0, k):
-			dataResponsibilityLists[i].append((resp[i]/totalWeight, data))
-	return dataResponsibilityLists
-
+			dataResponsibilityLists[i].append(resp[i]/totalWeight)
+	return dataResponsibilityLists		
 			
-def initResponsibilitiesToData(dataPoints):
-	dataResponsibilityLists = []
-	k = int(options.k)
-	for i in range(0, k): dataResponsibilityLists.append([])
-	count = 0
-	for data in dataPoints:
-		for i in range(0, k):
-			weight = 0
-			if count % k == i: weight = 1
-			dataResponsibilityLists[i].append((weight, data))
-		count += 1
-	return dataResponsibilityLists
+def initPriors():
+	priorLists = []
+	for i in range(0, int(options.k)): 
+		priorList = []
+		for j in range(0, numCategories): priorList.append(random.gammavariate(1, 1))
+		priorLists.append(priorList)
+	return priorLists
 	
-def learnMultipleDirichlets(dataResponsibilityLists):
-	k = int(options.k)
+def adjustKDirichlets(priorLists, dataResponsibilityLists, dataPoints):
 	priors = []
-	for i in range(0, k):
-		learned = learnDirichletDistribution(dataResponsibilityLists[i], 5)
-		priors.append(learned["priors"])
+	for i in range(0, int(options.k)):
+		newPrior = adjustDirichletDistribution(priorLists[i], dataResponsibilityLists[i], dataPoints)
+		priors.append(newPrior)
 	return priors
 	
-def learnKDirichByEM(dataPoints, numIterations):
-	dataResponsibilityLists = initResponsibilitiesToData(dataPoints)
+def learnKDirichByEM(dataPoints, numIterations, n):
+	priorLists = initPriors()
 	for i in range(0, numIterations):
 		print "E-M ITERATION", i
-		priorLists = learnMultipleDirichlets(dataResponsibilityLists)
 		dataResponsibilityLists = assignResponsibilitiesToData(dataPoints, priorLists)
+		priorLists = adjustKDirichlets(priorLists, dataResponsibilityLists, dataPoints)
 		print "Prior Lists: ", priorLists
 	
-	def respListSum(respList):
-		totalW = 0
-		for weight, data in respList: totalW += weight
-		return totalW
-	
-	respWeights = map(respListSum, dataResponsibilityLists)
-	totalW = sum(respWeights)
-	
-	return priorLists, map(lambda x: x/totalW, respWeights)
+	return priorLists, dataResponsibilityLists
 
-pLists, weights = learnKDirichByEM(allData, 20)
+pLists, rLists = learnKDirichByEM(allData, 300, numCategories)
 print "priors:", pLists
-print "Relative weights:", weights
+print "Relative weights:", map(sum, rLists)
 
 #learned = learnDirichletDistribution(allData, 1000)		
 #print "Final priors: ", learned["priors"]
