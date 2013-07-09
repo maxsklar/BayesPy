@@ -108,6 +108,14 @@ def predictStepUsingHessian(gradient, priors):
 	totalHConst = priorHessianConst(priors, vVector)
 	totalHDiag = priorHessianDiag(priors, uMatrix)		
 	return getPredictedStep(totalHConst, totalHDiag, gradient)
+	
+def predictStepUsingDiagHessian(gradient, priors):
+	totalHConst = priorHessianConst(priors, vVector)
+	totalHDiag = priorHessianDiag(priors, uMatrix)
+	retVal = [0]*K
+	for i in range(0, K): gradient[i] / (totalHDiag[i] + totalHConst)
+	return retVal
+	
 
 # Returns whether it's a good step, and the loss	
 def testTrialPriors(trialPriors, uMatrix, vVector):
@@ -117,6 +125,11 @@ def testTrialPriors(trialPriors, uMatrix, vVector):
 			return False, float("inf")
 		
 	return getTotalLoss(trialPriors, uMatrix, vVector)
+	
+def sqVectorSize(v):
+	s = 0
+	for i in range(0, len(v)): s += v[i] ** 2
+	return s
 
 #####
 # Load Data
@@ -173,6 +186,8 @@ currentLoss = getTotalLoss(priors, uMatrix, vVector)
 learnRateChange = 1.5
 momentumDecay = .9
 
+gradientToleranceSq = 2 ** -30
+
 mixer = 1
 count = 0
 accepted2 = False
@@ -185,6 +200,10 @@ while(count < 10000):
 	
 	#Get the data for taking steps
 	gradient = priorGradient(priors, uMatrix, vVector)
+	if (sqVectorSize(gradient) < gradientToleranceSq):
+		print "Converged"
+		break
+	
 	trialStep = predictStepUsingHessian(gradient, priors)
 	
 	#First, try the second order method
@@ -193,7 +212,7 @@ while(count < 10000):
 	
 	loss = testTrialPriors(trialPriors, uMatrix, vVector)
 	accepted2 = loss < currentLoss
-	if loss < currentLoss:
+	if accepted2:
 		currentLoss = loss
 		priors = trialPriors
 		continue
@@ -234,7 +253,6 @@ while(count < 10000):
 		
 print "Final priors: ", priors
 print "Final average loss:", getTotalLoss(priors, uMatrix, vVector)
-
 
 endTime = time.time()
 totalTime = endTime - startTime
