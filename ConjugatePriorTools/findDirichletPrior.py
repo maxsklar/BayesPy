@@ -182,20 +182,14 @@ initPriorWeight = 1
 priorSum = sum(priors)
 for i in range(0, K): priors[i] /= initPriorWeight * priorSum
 
-# Let the learning begin!!			
-learnRate = 100
-momentum = [0]*K
-
+# Let the learning begin!!
 #Only step in a positive direction, get the current best loss.
 currentLoss = getTotalLoss(priors, uMatrix, vVector)
 
 gradientToleranceSq = 2 ** -30
 
-mixer = 1
 count = 0
-accepted2 = False
 while(count < 10000):
-	
 	count += 1
 	print  count, "Loss: ", currentLoss, ", Priors: ", priors
 	
