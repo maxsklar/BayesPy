@@ -24,7 +24,7 @@ for i in range(0, numMultinomials):
 	multinomial = [0]*K
 	runningTotal = 0
 	for i in range(0, K):
-		runningTotal += random.gammavariate(alphas[i], 1)
+		if (alphas[i] != 0): runningTotal += random.gammavariate(alphas[i], 1)
 		multinomial[i] = runningTotal
 	
 	buckets = [0]*K

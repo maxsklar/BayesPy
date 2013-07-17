@@ -100,6 +100,14 @@ def getPredictedStep(hConst, hDiag, gradient):
 	for i in range(0, K): retVal[i] = (b - gradient[i]) / hDiag[i]
 	return retVal
 
+# Uses the diagonal hessian on the log-alpha values	
+def getPredictedStepAlt(hConst, hDiag, gradient, alphas):
+	retVal = [0]*K
+	for i in range(0, K): 
+		term = alphas[i] * (hDiag[i] + hConst)
+		retVal[i] = -1* gradient[i] / (gradient[i] + term)
+	return retVal
+
 #The priors and data are global, so we don't need to pass them in
 def getTotalLoss(trialPriors, uMatrix, vVector):
 	return -1*dirichLogProb(trialPriors, uMatrix, vVector)
@@ -112,9 +120,7 @@ def predictStepUsingHessian(gradient, priors):
 def predictStepUsingDiagHessian(gradient, priors):
 	totalHConst = priorHessianConst(priors, vVector)
 	totalHDiag = priorHessianDiag(priors, uMatrix)
-	retVal = [0]*K
-	for i in range(0, K): gradient[i] / (totalHDiag[i] + totalHConst)
-	return retVal
+	return getPredictedStepAlt(totalHConst, totalHDiag, gradient, priors)
 	
 
 # Returns whether it's a good step, and the loss	
@@ -122,7 +128,7 @@ def testTrialPriors(trialPriors, uMatrix, vVector):
 	n = len(trialPriors)
 	for i in range(0, n): 
 		if trialPriors[i] <= 0: 
-			return False, float("inf")
+			return float("inf")
 		
 	return getTotalLoss(trialPriors, uMatrix, vVector)
 	
@@ -183,9 +189,6 @@ momentum = [0]*K
 #Only step in a positive direction, get the current best loss.
 currentLoss = getTotalLoss(priors, uMatrix, vVector)
 
-learnRateChange = 1.5
-momentumDecay = .9
-
 gradientToleranceSq = 2 ** -30
 
 mixer = 1
@@ -194,14 +197,12 @@ accepted2 = False
 while(count < 10000):
 	
 	count += 1
-	end = "USE HESSIAN"
-	if (not accepted2): end = "Learn: " + str(learnRate) + ", Momentum: " + str(momentum)
-	print  count, "Loss: ", currentLoss, ", Priors: ", priors, "," + end
+	print  count, "Loss: ", currentLoss, ", Priors: ", priors
 	
 	#Get the data for taking steps
 	gradient = priorGradient(priors, uMatrix, vVector)
 	if (sqVectorSize(gradient) < gradientToleranceSq):
-		print "Converged"
+		print "Converged with small gradient"
 		break
 	
 	trialStep = predictStepUsingHessian(gradient, priors)
@@ -210,45 +211,26 @@ while(count < 10000):
 	trialPriors = [0]*len(priors)
 	for i in range(0, len(priors)): trialPriors[i] = priors[i] + trialStep[i]
 	
+	#TODO: Check for taking such a small step that the loss change doesn't register (essentially converged)
+	#  Fix by ending
+	
 	loss = testTrialPriors(trialPriors, uMatrix, vVector)
-	accepted2 = loss < currentLoss
-	if accepted2:
+	if loss < currentLoss:
 		currentLoss = loss
 		priors = trialPriors
 		continue
-		
-	#It didn't work, so we're going to fall back to gradient methods:
-	
-	trialPriors = [0]*len(priors)
-	for i in range(0, len(priors)): trialPriors[i] = priors[i] + learnRate*gradient[i] + momentum[i]
-	
-	loss = testTrialPriors(trialPriors, uMatrix, vVector)
-	accepted = loss < currentLoss
-	if (accepted):
-		currentLoss = loss
-		priors = trialPriors
-		learnRate *= learnRateChange
-		for i in range(0, len(priors)): momentum[i] = momentumDecay*momentum[i] + learnRate*gradient[i] + momentum[i]
-		continue
-	
-	#Lower the learning rate until it's accepted
-	for i in range(0, len(priors)): momentum[i] = 0
-	
-	while(not accepted):
-		learnRate /= learnRateChange
-		trialPriors = [0]*len(priors)
-		for i in range(0, len(priors)): trialPriors[i] = priors[i] + learnRate*gradient[i]
-		loss = testTrialPriors(trialPriors, uMatrix, vVector)
-		if (loss < currentLoss): break
-		if (learnRate < 2**(-40)): break
-		
-	if learnRate > 2**(-40): 
-		currentLoss = loss
-		priors = trialPriors
-		for i in range(0, len(priors)): momentum[i] = learnRate*gradient[i]
 	else:
-		print "Converged"
-		break
+		trialStep = predictStepUsingDiagHessian(gradient, priors)
+		trialPriors = [0]*len(priors)
+		for i in range(0, len(priors)): trialPriors[i] = priors[i] * math.exp(trialStep[i])
+		loss = testTrialPriors(trialPriors, uMatrix, vVector)
+		if loss < currentLoss:
+			currentLoss = loss
+			priors = trialPriors
+			continue
+		else:
+			print "Converged with no loss improvement"
+			break
 		
 		
 print "Final priors: ", priors
