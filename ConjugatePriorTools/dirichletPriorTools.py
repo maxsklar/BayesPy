@@ -167,9 +167,16 @@ def findDirichletPriors(uMatrix, vVector, initAlphas, verbose):
 
 def getLossForMultinomials(multinomials):
 
-def findDirichletPriorsFromMultinomials(multinomials, initAlphas, verbose):
-  # Compute the sufficient statistic
-  ss
-  
+def findDirichletPriorsFromMultinomials(multinomials, initAlphas, verbose):  
   priors = initAlphas
+  
+  K = len(priors)
+  N = len(multinomials)
+  
+  # Compute the sufficient statistic
+  ss = [0]*K
+  for n in range(0, N):
+    for k in range(0, K):
+      ss[k] += math.log(mutlinomials[n][k])
+  
   
