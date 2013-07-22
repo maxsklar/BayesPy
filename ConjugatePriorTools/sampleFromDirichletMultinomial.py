@@ -10,6 +10,7 @@ import sys
 import csv
 import math
 import random
+import samplingTools as Sample
 from optparse import OptionParser
 
 parser = OptionParser()
@@ -24,14 +25,6 @@ alphas = map(float, options.A.split(","))
 K = len(alphas)
 outputType = "countMatrix"
 if (options.O == "UMatrix"): outputType = options.O
-
-def drawMultinomial():
-  multinomial = [0]*K
-  runningTotal = 0
-  for i in range(0, K):
-	  if (alphas[i] != 0): runningTotal += random.gammavariate(alphas[i], 1)
-	  multinomial[i] = runningTotal
-  return multinomial, runningTotal
   
 def sampleFromMultinomial(multinomial, total):
   buckets = [0]*K
@@ -46,22 +39,10 @@ def sampleFromMultinomial(multinomial, total):
   return buckets
 
 if (outputType == "UMatrix"):
-  # Init U-Matrix
-  U = []
-  for i in range(0, K): U.append([0] * options.M)
-
-  for i in range(0, options.N):
-	  multinomial, total = drawMultinomial()
-	  buckets = sampleFromMultinomial(multinomial, total)
-	  
-	  for k in range(0, K):
-	    for count in range(0, buckets[k]):
-	      U[k][count] += 1
-	      
-  for i in range(0, K):
-    print "\t".join(map(str, U[i]))
+  data = Sample.generateRandomDataset(options.M, options.N, alphas)
+  print "\t".join(map(str, data))
 else:
   for i in range(0, options.N):
-	  multinomial, total = drawMultinomial()
-	  buckets = sampleFromMultinomial(multinomial, total)
+	  multinomial = Sample.drawFromDirichlet(alphas)
+	  buckets = Sample.sampleFromMultinomial(multinomial, options.M)
 	  print "\t".join(map(str, buckets))
