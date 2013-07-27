@@ -11,7 +11,7 @@ import math
 import random
 
 #Find the log probability that we see a certain set of data
-# give our prior.
+# give our prior.mate d
 def dirichLogProb(priorList, uMatrix, vVector):
   K = len(uMatrix)
   total = 0.0
@@ -80,10 +80,21 @@ def getPredictedStep(hConst, hDiag, gradient):
 # Uses the diagonal hessian on the log-alpha values	
 def getPredictedStepAlt(hConst, hDiag, gradient, alphas):
   K = len(gradient)
+
+  Z = 0
+  for k in range(0, K):
+    Z += alphas[k] / (gradient[k] - alphas[k]*hDiag[k])
+  Z *= hConst
+
+  Ss = [0]*K
+  for k in range(0, K):
+    Ss[k] = 1.0 / (gradient[k] - alphas[k]*hDiag[k]) / (1 + Z)
+  S = sum(Ss)
+
   retVal = [0]*K
   for i in range(0, K): 
-    term = alphas[i] * (hDiag[i] + hConst)
-    retVal[i] = -1* gradient[i] / (gradient[i] + term)
+    retVal[i] = gradient[i] / (gradient[i] - alphas[i]*hDiag[i]) * (1 - hConst * alphas[i] * S)
+
   return retVal
 
 #The priors and data are global, so we don't need to pass them in
@@ -95,7 +106,7 @@ def predictStepUsingHessian(gradient, priors, uMatrix, vVector):
 	totalHDiag = priorHessianDiag(priors, uMatrix)		
 	return getPredictedStep(totalHConst, totalHDiag, gradient)
 	
-def predictStepUsingDiagHessian(gradient, priors, uMatrix, vVector):
+def predictStepLogSpace(gradient, priors, uMatrix, vVector):
 	totalHConst = priorHessianConst(priors, vVector)
 	totalHDiag = priorHessianDiag(priors, uMatrix)
 	return getPredictedStepAlt(totalHConst, totalHDiag, gradient, priors)
@@ -103,9 +114,8 @@ def predictStepUsingDiagHessian(gradient, priors, uMatrix, vVector):
 
 # Returns whether it's a good step, and the loss	
 def testTrialPriors(trialPriors, uMatrix, vVector):
-	n = len(trialPriors)
-	for i in range(0, n): 
-		if trialPriors[i] <= 0: 
+	for alpha in trialPriors: 
+		if alpha <= 0: 
 			return float("inf")
 		
 	return getTotalLoss(trialPriors, uMatrix, vVector)
@@ -122,16 +132,19 @@ def findDirichletPriors(uMatrix, vVector, initAlphas, verbose):
   #Only step in a positive direction, get the current best loss.
   currentLoss = getTotalLoss(priors, uMatrix, vVector)
 
-  gradientToleranceSq = 2 ** -20
+  gradientToleranceSq = 2 ** -10
+  learnRateTolerance = 2 ** -20
 
   count = 0
-  while(count < 10000):
+  while(count < 50):
     count += 1
-    if (verbose): print  count, "Loss: ", currentLoss, ", Priors: ", priors
     
     #Get the data for taking steps
     gradient = priorGradient(priors, uMatrix, vVector)
-    if (sqVectorSize(gradient) < gradientToleranceSq):
+    gradientSize = sqVectorSize(gradient) 
+    if (verbose): print  count, "Loss: ", currentLoss, ", Priors: ", priors, ", Gradient Size: ", gradientSize
+    
+    if (gradientSize < gradientToleranceSq):
       if (verbose): print "Converged with small gradient"
       return priors
     
@@ -150,33 +163,25 @@ def findDirichletPriors(uMatrix, vVector, initAlphas, verbose):
       priors = trialPriors
       continue
     
-    trialStep = predictStepUsingDiagHessian(gradient, priors, uMatrix, vVector)
+    trialStep = predictStepLogSpace(gradient, priors, uMatrix, vVector)
     trialPriors = [0]*len(priors)
     for i in range(0, len(priors)): trialPriors[i] = priors[i] * math.exp(trialStep[i])
     loss = testTrialPriors(trialPriors, uMatrix, vVector)
-    if loss < currentLoss:
-      currentLoss = loss
-      priors = trialPriors
-      continue
+
+    #Step in the direction of the gradient until there is a loss improvement
+    learnRate = 1.0
+    while loss > currentLoss:
+      learnRate *= 0.9
+      trialPriors = [0]*len(priors)
+      for i in range(0, len(priors)): trialPriors[i] = priors[i] + gradient[i]*learnRate
+      loss = testTrialPriors(trialPriors, uMatrix, vVector)
+
+    if (learnRate < learnRateTolerance):
+      if (verbose): print "Converged with small learn rate"
+      return priors
+
+    currentLoss = loss
+    priors = trialPriors
     
-    if (verbose): print "Converged with no loss improvement"
-    return priors
   if (verbose): print "Reached max iterations"
   return priors
-
-
-def getLossForMultinomials(multinomials):
-
-def findDirichletPriorsFromMultinomials(multinomials, initAlphas, verbose):  
-  priors = initAlphas
-  
-  K = len(priors)
-  N = len(multinomials)
-  
-  # Compute the sufficient statistic
-  ss = [0]*K
-  for n in range(0, N):
-    for k in range(0, K):
-      ss[k] += math.log(mutlinomials[n][k])
-  
-  

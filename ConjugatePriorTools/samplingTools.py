@@ -11,18 +11,18 @@
 import math
 import random
 
-# Returns a discrete distribution, unnormalized so it may not sum to 1
+# Returns a discrete distribution
 def drawFromDirichlet(alphas):
   K = len(alphas)
   multinomial = [0]*K
   runningTotal = 0
   for i in range(0, K): multinomial[i] = random.gammavariate(alphas[i], 1)
-  return multinomial
+  S = sum(multinomial)
+  return map(lambda i: i/S, multinomial)
 
 # Draws a category from an unnormalized distribution
 def drawCategory(distribution):
   K = len(distribution)
-  total = sum(distribution)
   
   r = sum(distribution) * random.random()
   runningTotal = 0
@@ -56,3 +56,19 @@ def generateRandomDataset(M, N, alphas):
 	    for count in range(0, buckets[k]):
 	      U[k][count] += 1
   return U
+
+def generateRandomDirichlets(N, alphas):
+	D = []
+	for n in range(0, N):
+		D.append(drawFromDirichlet(alphas))
+	return D
+	
+def generateRandomDirichletsSS(N, alphas):
+	K = len(alphas)
+	ss = [0]*K
+	for n in range(0, N):
+		distr = drawFromDirichlet(alphas)
+		for k in range(0, K): ss[k] += distr[k]
+	
+	for k in range(0, K): ss[k] /= N
+	return ss

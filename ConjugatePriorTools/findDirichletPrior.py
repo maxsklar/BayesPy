@@ -28,7 +28,7 @@ import csv
 import math
 import random
 import time
-import dirichletPriorTools as DPT
+import dirichletMultinomialEstimation as DME
 from optparse import OptionParser
 
 startTime = time.time()
@@ -77,19 +77,20 @@ for row in reader:
 
 	if (i % 1000000) == 0: print "Loading Data", i
 
+dataLoadTime = time.time()
 print "all data loaded into memory"
+print "time to load memory: ", dataLoadTime - startTime
 
 initPriorWeight = 1
 priorSum = sum(priors)
 for i in range(0, K): priors[i] /= priorSum
 
 verbose = options.V == "True"
-priors = DPT.findDirichletPriors(uMatrix, vVector, priors, verbose)	
+priors = DME.findDirichletPriors(uMatrix, vVector, priors, verbose)	
 print "Final priors: ", priors
-print "Final average loss:", DPT.getTotalLoss(priors, uMatrix, vVector)
+print "Final average loss:", DME.getTotalLoss(priors, uMatrix, vVector)
 
-endTime = time.time()
-totalTime = endTime - startTime
-print "Total Time: " + str(totalTime)
+totalTime = time.time() - dataLoadTime
+print "Time to calculate: " + str(totalTime)
 	
 	

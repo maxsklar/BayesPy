@@ -12,7 +12,8 @@ import csv
 import math
 import time
 import samplingTools as Sample
-import dirichletPriorTools as DPT
+import dirichletMultinomialEstimation as DME
+import dirichletEstimation as DE
 from optparse import OptionParser
 
 parser = OptionParser()
@@ -32,16 +33,29 @@ def getError(priors, MLE):
     
   return math.sqrt(total)
 
-for M in range(2, 20):
+for M in range(2, 5):
   errors = []
 
   for i in range(0, 1000):
     uMatrix = Sample.generateRandomDataset(M, N, alphas)
     vVector = [N]*M
     init = [1.0 / K]*K
-    MLEPriors = DPT.findDirichletPriors(uMatrix, vVector, init, False)
+    MLEPriors = DME.findDirichletPriors(uMatrix, vVector, init, False)
     errors.append(getError(alphas, MLEPriors))
 
   errors.sort()
 
   print "\t".join(map(str, [M, errors[300], errors[500], errors[700], errors[900]]))
+
+# Test the M = infinity case
+errors = []
+
+for i in range(0, 1000):
+  ss = Sample.generateRandomDirichletsSS(N, alphas)
+  init = [1.0 / K]*K
+  MLEPriors = DE.findDirichletPriors(ss, init, False)
+  errors.append(getError(alphas, MLEPriors))
+
+errors.sort()
+
+print "\t".join(map(str, ["Inf", errors[300], errors[500], errors[700], errors[900]]))

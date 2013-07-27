@@ -1,10 +1,4 @@
 #!/usr/bin/python
-#
-# First Argument: number of multinomials to draw
-# Second Argument: number of points to draw from each mutlinomial
-# The rest of the arguments: the alpha parameters for the dirichlet 
-#
-#
 
 import sys
 import csv
@@ -15,18 +9,18 @@ from optparse import OptionParser
 
 parser = OptionParser()
 parser.add_option('-N', '--numMulinomials', dest='N', type="int", default=100, help='Number of distinct multinomials to generate')
-parser.add_option('-M', '--numSamplesPerRow', dest='M', type="int", default=100, help='The number of samples for each multinomial')
 parser.add_option('-A', '--alpha', dest='A', default='1,1', help='Comma-separated dirichlet parameters')
-parser.add_option('-O', '--outputType', dest='O', default='countMatrix', help='The type of output: countMatrix (default), or UMatrix')
+parser.add_option('-O', '--outputType', dest='O', default='multnomials', help='The type of output: multnomials (default), or ss (sufficient statistic) which is the average of the sum of the logs for each category')
 (options, args) = parser.parse_args()
 
 
 alphas = map(float, options.A.split(","))
 K = len(alphas)
-outputType = "countMatrix"
-if (options.O == "UMatrix"): outputType = options.O
 
-if (outputType == "UMatrix"):
+outputType = "countMatrix"
+if (options.O == "ss"): outputType = options.O
+
+if (outputType == "ss"):
   data = Sample.generateRandomDataset(options.M, options.N, alphas)
   print "\t".join(map(str, data))
 else:
