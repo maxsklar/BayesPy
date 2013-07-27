@@ -11,6 +11,11 @@ import math
 import random
 import scipy.special as mathExtra
 
+def digamma(x):
+  print "digamma: ", x, mathExtra.psi(x)
+  return float(mathExtra.psi(x))
+  
+
 # Find the "sufficient statistic" for a group of multinomials.
 # Essential, it's the average of the log probabilities
 def getSufficientStatistic(multinomials):
@@ -37,16 +42,16 @@ def logProbForMultinomials(alphas, ss):
 #Gives the derivative with respect to the log of prior.  This will be used to adjust the loss
 def getGradientForMultinomials(alphas, ss):
   K = len(alphas)
-  C = mathExtra.polygamma(0, sum(alphas))
+  C = digamma(sum(alphas))
   retVal = [C]*K
   for k in range(0, K):
-    retVal[k] += ss[k] - mathExtra.polygamma(0, alphas[k])
+    retVal[k] += ss[k] - digamma(alphas[k])
   return retVal
 
 #The hessian is actually the sum of two matrices: a diagonal matrix and a constant-value matrix.
 #We'll write two functions to get both
-def priorHessianConst(priorList, ss): return mathExtra.polygamma(1, sum(ss))
-def priorHessianDiag(priorList, ss): return [-mathExtra.polygamma(1, s) for s in ss]
+def priorHessianConst(priorList, ss): return float(mathExtra.polygamma(1, sum(ss)))
+def priorHessianDiag(priorList, ss): return [-float(mathExtra.polygamma(1, s)) for s in ss]
 
 	
 # Compute the next value to try here
@@ -95,9 +100,9 @@ def predictStepUsingHessian(gradient, priors, ss):
 	totalHDiag = priorHessianDiag(priors, ss)		
 	return getPredictedStep(totalHConst, totalHDiag, gradient)
 	
-def predictStepLogSpace(gradient, priors, uMatrix, vVector):
-	totalHConst = priorHessianConst(priors, vVector)
-	totalHDiag = priorHessianDiag(priors, uMatrix)
+def predictStepLogSpace(gradient, priors, ss):
+	totalHConst = priorHessianConst(priors, ss)
+	totalHDiag = priorHessianDiag(priors, ss)
 	return getPredictedStepAlt(totalHConst, totalHDiag, gradient, priors)
 	
 
@@ -131,7 +136,7 @@ def findDirichletPriors(ss, initAlphas, verbose):
     #Get the data for taking steps
     gradient = getGradientForMultinomials(priors, ss)
     gradientSize = sqVectorSize(gradient) 
-    if (verbose): print  count, "Loss: ", currentLoss, ", Priors: ", priors, ", Gradient Size: ", gradientSize
+    if (verbose): print  count, "Loss: ", currentLoss, ", Priors: ", priors, ", Gradient Size: ", gradientSize, gradient
     
     if (gradientSize < gradientToleranceSq):
       if (verbose): print "Converged with small gradient"
@@ -155,7 +160,7 @@ def findDirichletPriors(ss, initAlphas, verbose):
     trialStep = predictStepLogSpace(gradient, priors, ss)
     trialPriors = [0]*len(priors)
     for i in range(0, len(priors)): trialPriors[i] = priors[i] * math.exp(trialStep[i])
-    loss = testTrialPriors(trialPriors, uMatrix, vVector)
+    loss = testTrialPriors(trialPriors, ss)
 
     #Step in the direction of the gradient until there is a loss improvement
     learnRate = 1.0
@@ -163,7 +168,7 @@ def findDirichletPriors(ss, initAlphas, verbose):
       learnRate *= 0.9
       trialPriors = [0]*len(priors)
       for i in range(0, len(priors)): trialPriors[i] = priors[i] + gradient[i]*learnRate
-      loss = testTrialPriors(trialPriors, uMatrix, vVector)
+      loss = testTrialPriors(trialPriors, ss)
 
     if (learnRate < learnRateTolerance):
       if (verbose): print "Converged with small learn rate"

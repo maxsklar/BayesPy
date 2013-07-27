@@ -17,14 +17,11 @@ parser.add_option('-O', '--outputType', dest='O', default='multnomials', help='T
 alphas = map(float, options.A.split(","))
 K = len(alphas)
 
-outputType = "countMatrix"
-if (options.O == "ss"): outputType = options.O
-
-if (outputType == "ss"):
-  data = Sample.generateRandomDataset(options.M, options.N, alphas)
-  print "\t".join(map(str, data))
+if (options.O == "ss"):
+  for i in range(0, options.N):
+    multinomial = Sample.drawFromDirichlet(alphas)
+    print "\t".join(map(str, multinomial))
 else:
   for i in range(0, options.N):
-	  multinomial = Sample.drawFromDirichlet(alphas)
-	  buckets = Sample.sampleFromMultinomial(multinomial, options.M)
-	  print "\t".join(map(str, buckets))
+    multinomial = Sample.drawFromDirichlet(alphas)
+    print "\t".join(map(str, multinomial))
