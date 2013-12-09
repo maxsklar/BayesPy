@@ -68,7 +68,7 @@ def generateRandomDirichletsSS(N, alphas):
 	ss = [0]*K
 	for n in range(0, N):
 		distr = drawFromDirichlet(alphas)
-		for k in range(0, K): ss[k] += distr[k]
+		for k in range(0, K): ss[k] += math.log(distr[k])
 	
 	for k in range(0, K): ss[k] /= N
 	return ss

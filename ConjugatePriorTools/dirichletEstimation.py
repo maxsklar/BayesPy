@@ -11,9 +11,8 @@ import math
 import random
 import scipy.special as mathExtra
 
-def digamma(x):
-  print "digamma: ", x, mathExtra.psi(x)
-  return float(mathExtra.psi(x))
+def digamma(x): return float(mathExtra.psi(x))
+def trigamma(x): return float(mathExtra.polygamma(1, x))
   
 
 # Find the "sufficient statistic" for a group of multinomials.
@@ -50,9 +49,8 @@ def getGradientForMultinomials(alphas, ss):
 
 #The hessian is actually the sum of two matrices: a diagonal matrix and a constant-value matrix.
 #We'll write two functions to get both
-def priorHessianConst(priorList, ss): return float(mathExtra.polygamma(1, sum(ss)))
-def priorHessianDiag(priorList, ss): return [-float(mathExtra.polygamma(1, s)) for s in ss]
-
+def priorHessianConst(alphas, ss): return -trigamma(sum(alphas))
+def priorHessianDiag(alphas, ss): return [trigamma(a) for a in alphas]
 	
 # Compute the next value to try here
 # http://research.microsoft.com/en-us/um/people/minka/papers/dirichlet/minka-dirichlet.pdf (eq 18)
@@ -126,11 +124,11 @@ def findDirichletPriors(ss, initAlphas, verbose):
   #Only step in a positive direction, get the current best loss.
   currentLoss = getTotalLoss(priors, ss)
 
-  gradientToleranceSq = 2 ** -10
-  learnRateTolerance = 2 ** -20
+  gradientToleranceSq = 2 ** -20
+  learnRateTolerance = 2 ** -10
 
   count = 0
-  while(count < 50):
+  while(count < 1000):
     count += 1
     
     #Get the data for taking steps
@@ -148,9 +146,6 @@ def findDirichletPriors(ss, initAlphas, verbose):
     trialPriors = [0]*len(priors)
     for i in range(0, len(priors)): trialPriors[i] = priors[i] + trialStep[i]
     
-    #TODO: Check for taking such a small step that the loss change doesn't register (essentially converged)
-    #  Fix by ending
-    
     loss = testTrialPriors(trialPriors, ss)
     if loss < currentLoss:
       currentLoss = loss
@@ -163,6 +158,7 @@ def findDirichletPriors(ss, initAlphas, verbose):
     loss = testTrialPriors(trialPriors, ss)
 
     #Step in the direction of the gradient until there is a loss improvement
+    loss = 10000000
     learnRate = 1.0
     while loss > currentLoss:
       learnRate *= 0.9

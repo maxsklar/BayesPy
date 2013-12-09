@@ -80,20 +80,24 @@ def getPredictedStep(hConst, hDiag, gradient):
 # Uses the diagonal hessian on the log-alpha values	
 def getPredictedStepAlt(hConst, hDiag, gradient, alphas):
   K = len(gradient)
+  retVal = [0]*K
+
+  denominators = [(gradient[k] - alphas[k]*hDiag[k]) for k in range(0, K)]
+  for k in range(0, K):
+    if (denominators[k] == 0): return retVal
 
   Z = 0
   for k in range(0, K):
-    Z += alphas[k] / (gradient[k] - alphas[k]*hDiag[k])
+    Z += alphas[k] / denominators[k]
   Z *= hConst
 
   Ss = [0]*K
   for k in range(0, K):
-    Ss[k] = 1.0 / (gradient[k] - alphas[k]*hDiag[k]) / (1 + Z)
+    Ss[k] = 1.0 / denominators[k] / (1 + Z)
   S = sum(Ss)
 
-  retVal = [0]*K
   for i in range(0, K): 
-    retVal[i] = gradient[i] / (gradient[i] - alphas[i]*hDiag[i]) * (1 - hConst * alphas[i] * S)
+    retVal[i] = gradient[i] / denominators[k] * (1 - hConst * alphas[i] * S)
 
   return retVal
 
@@ -165,7 +169,11 @@ def findDirichletPriors(uMatrix, vVector, initAlphas, verbose):
     
     trialStep = predictStepLogSpace(gradient, priors, uMatrix, vVector)
     trialPriors = [0]*len(priors)
-    for i in range(0, len(priors)): trialPriors[i] = priors[i] * math.exp(trialStep[i])
+    for i in range(0, len(priors)): 
+      try:
+        trialPriors[i] = priors[i] * math.exp(trialStep[i])
+      except:
+        trialPriors[i] = priors[i]
     loss = testTrialPriors(trialPriors, uMatrix, vVector)
 
     #Step in the direction of the gradient until there is a loss improvement

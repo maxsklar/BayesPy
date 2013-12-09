@@ -29,12 +29,14 @@ import math
 import random
 import time
 import dirichletMultinomialEstimation as DME
+import samplingTools as Sample
 from optparse import OptionParser
 
 startTime = time.time()
 parser = OptionParser()
 parser.add_option('-s', '--sampleRate', dest='sampleRate', default='1', help='Randomly sample this fraction of rows')
 parser.add_option('-K', '--numCategories', dest='K', default='2', help='The number of (tab separated) categories that are being counted')
+parser.add_option('-M', '--maxCountPerRow', dest='M', type=int, default=sys.maxint, help='The maximum number of the count per row.  Setting this lower increases the running time')
 parser.add_option('-V', '--verbose', dest='V', default="True", help='Whether the print out the debug information in the calculation')
 (options, args) = parser.parse_args()
 K = int(options.K)
@@ -61,6 +63,9 @@ for row in reader:
 		if (len(data) != K):
 			print "Error: there are " + str(K) + " categories, but line has " + str(len(data)) + " counts."
 			print "line " + str(i) + ": " + str(data)
+		
+		
+		while sum(data) > options.M: data[Sample.drawCategory(data)] -= 1
 		
 		sumData = sum(data)
 		weightForMean = 1.0 / (1.0 + sumData)
