@@ -54,9 +54,9 @@ uMatrix = []
 for i in range(0, K): uMatrix.append([])
 vVector = []
 
-i = 0
+idx = 0
 for row in reader:
-	i += 1
+	idx += 1
 
 	if (random.random() < float(options.sampleRate)):
 		data = map(int, row)
@@ -80,11 +80,15 @@ for row in reader:
 			if (len(vVector) == j): vVector.append(0)
 			vVector[j] += 1
 
-	if (i % 1000000) == 0: print "Loading Data", i
+	if (idx % 1000000) == 0: print "Loading Data", idx
 
 dataLoadTime = time.time()
-print "all data loaded into memory"
+print "loaded %s records into memory" % idx
 print "time to load memory: ", dataLoadTime - startTime
+
+for row in uMatrix:
+	if len(row) == 0:
+		raise Exception("You can't have any columns with all 0s")
 
 initPriorWeight = 1
 priorSum = sum(priors)
