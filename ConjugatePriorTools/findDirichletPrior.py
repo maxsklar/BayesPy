@@ -31,6 +31,7 @@ import time
 import dirichletMultinomialEstimation as DME
 import samplingTools as Sample
 from optparse import OptionParser
+import logging
 
 startTime = time.time()
 parser = OptionParser()
@@ -38,15 +39,24 @@ parser.add_option('-s', '--sampleRate', dest='sampleRate', default='1', help='Ra
 parser.add_option('-K', '--numCategories', dest='K', default='2', help='The number of (tab separated) categories that are being counted')
 parser.add_option('-M', '--maxCountPerRow', dest='M', type=int, default=sys.maxint, help='The maximum number of the count per row.  Setting this lower increases the running time')
 parser.add_option('-V', '--verbose', dest='V', default="True", help='Whether the print out the debug information in the calculation')
+parser.add_option("-L", '--loglevel', action="store", dest="loglevel", default='DEBUG', help="don't print status messages to stdout")
+
 (options, args) = parser.parse_args()
 K = int(options.K)
+
+#Set the log level
+log_level = options.loglevel
+numeric_level = getattr(logging, log_level, None)
+if not isinstance(numeric_level, int):
+    raise ValueError('Invalid log level: %s' % loglevel)
+logging.basicConfig(level=numeric_level)
 #####
 # Load Data
 #####
 
 csv.field_size_limit(1000000000)
 reader = csv.reader(sys.stdin, delimiter='\t')
-print "Loading data"
+logging.debug("Loading data")
 priors = [0.]*K
 
 # Special data vector
@@ -61,8 +71,8 @@ for row in reader:
 	if (random.random() < float(options.sampleRate)):
 		data = map(int, row)
 		if (len(data) != K):
-			print "Error: there are " + str(K) + " categories, but line has " + str(len(data)) + " counts."
-			print "line " + str(i) + ": " + str(data)
+			logging.error("There are %s categories, but line has %s counts." % (K, len(data)))
+			logging.error("line %s: %s" % (i, data))
 		
 		
 		while sum(data) > options.M: data[Sample.drawCategory(data)] -= 1
@@ -83,8 +93,8 @@ for row in reader:
 	if (idx % 1000000) == 0: print "Loading Data", idx
 
 dataLoadTime = time.time()
-print "loaded %s records into memory" % idx
-print "time to load memory: ", dataLoadTime - startTime
+logging.debug("loaded %s records into memory" % idx)
+logging.debug("time to load memory: %s " % (dataLoadTime - startTime))
 
 for row in uMatrix:
 	if len(row) == 0:
@@ -97,9 +107,7 @@ for i in range(0, K): priors[i] /= priorSum
 verbose = options.V == "True"
 priors = DME.findDirichletPriors(uMatrix, vVector, priors, verbose)	
 print "Final priors: ", priors
-print "Final average loss:", DME.getTotalLoss(priors, uMatrix, vVector)
+logging.debug("Final average loss: %s" % DME.getTotalLoss(priors, uMatrix, vVector))
 
 totalTime = time.time() - dataLoadTime
-print "Time to calculate: " + str(totalTime)
-	
-	
+logging.debug("Time to calculate: %s" % totalTime)
