@@ -40,8 +40,11 @@ parser.add_option('-K', '--numCategories', dest='K', default='2', help='The numb
 parser.add_option('-M', '--maxCountPerRow', dest='M', type=int, default=sys.maxint, help='The maximum number of the count per row.  Setting this lower increases the running time')
 parser.add_option('-V', '--verbose', dest='V', default="True", help='Whether the print out the debug information in the calculation')
 parser.add_option("-L", '--loglevel', action="store", dest="loglevel", default='DEBUG', help="don't print status messages to stdout")
+parser.add_option('-H', '--hyperPrior', dest='H', default="", help='The hyperprior of the Dirichlet (paper coming soon!) comma separated K+1 values (Beta then W)')
 
 (options, args) = parser.parse_args()
+verbose = options.V == "True"
+
 K = int(options.K)
 
 #Set the log level
@@ -50,6 +53,22 @@ numeric_level = getattr(logging, log_level, None)
 if not isinstance(numeric_level, int):
     raise ValueError('Invalid log level: %s' % loglevel)
 logging.basicConfig(level=numeric_level)
+
+if (verbose): print "K = " + str(K)
+
+# TODO(max): write up a paper describing the hyperprior and link it.
+W = 0
+Beta = [0]*K
+Hstr = options.H.split(",")
+hasHyperprior = False
+if (len(Hstr) == K + 1):
+	for i in range(0, K): Beta[i] = float(Hstr[i])
+	W = float(Hstr[K])
+	hasHyperprior = True
+
+logging.debug("Beta = " + str(Beta))
+logging.debug("W = " + str(W))
+	
 #####
 # Load Data
 #####
@@ -97,17 +116,20 @@ logging.debug("loaded %s records into memory" % idx)
 logging.debug("time to load memory: %s " % (dataLoadTime - startTime))
 
 for row in uMatrix:
-	if len(row) == 0:
-		raise Exception("You can't have any columns with all 0s")
+	if len(row) == 0 and not hasHyperprior:
+		# TODO(max): write up a paper describing the hyperprior and link it.
+		raise Exception("You can't have any columns with all 0s, unless you provide a hyperprior (-H)")
 
 initPriorWeight = 1
 priorSum = sum(priors)
-for i in range(0, K): priors[i] /= priorSum
+for i in range(0, K):
+  priors[i] /= priorSum
+  priors[i] += 0.01 # Nudge to prevent zero
 
 verbose = options.V == "True"
-priors = DME.findDirichletPriors(uMatrix, vVector, priors, verbose)	
+priors = DME.findDirichletPriors(uMatrix, vVector, priors, verbose, Beta, W)	
 print "Final priors: ", priors
-logging.debug("Final average loss: %s" % DME.getTotalLoss(priors, uMatrix, vVector))
+logging.debug("Final average loss: %s" % DME.getTotalLoss(priors, uMatrix, vVector, Beta, W))
 
 totalTime = time.time() - dataLoadTime
 logging.debug("Time to calculate: %s" % totalTime)

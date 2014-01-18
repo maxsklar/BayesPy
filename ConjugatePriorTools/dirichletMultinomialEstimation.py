@@ -9,10 +9,14 @@
 
 import math
 import random
+import scipy.special as mathExtra
+
+def digamma(x): return float(mathExtra.psi(x))
+def trigamma(x): return float(mathExtra.polygamma(1, x))
 
 #Find the log probability that we see a certain set of data
 # give our prior.mate d
-def dirichLogProb(priorList, uMatrix, vVector):
+def dirichLogProb(priorList, uMatrix, vVector, Beta = None, W = None):
   K = len(uMatrix)
   total = 0.0
   for k in range(0, K):
@@ -23,10 +27,18 @@ def dirichLogProb(priorList, uMatrix, vVector):
   for i in range(0, len(vVector)):
     total -= vVector[i] * math.log(sumPrior + i)
 
+  # Add prior
+  if (Beta != None):
+    for i in range(0, K):
+      total -= priorList[k]*Beta[k]
+
+  if (W != None):
+    total += W*math.lgamma(sumPrior)
+    for k in range(0, K): total -= W*(math.lgamma(priorList[k]))
   return total
 
-#Gives the derivative with respect to the log of prior.  This will be used to adjust the loss
-def priorGradient(priorList, uMatrix, vVector):
+#Gives the derivative with respect to the prior.  This will be used to adjust the loss
+def priorGradient(priorList, uMatrix, vVector, Beta = None, W = None):
 	K = len(uMatrix)
 	
 	termToSubtract = 0
@@ -40,23 +52,37 @@ def priorGradient(priorList, uMatrix, vVector):
 	
 	for j in range(0, K):
 		retVal[j] -= termToSubtract
+	
+	# Add Prior
+	if (Beta != None):
+		for k in range(0, K):
+			retVal[k] -= Beta[k]
+	
+	if (W != None):
+		for k in range(0, K):
+			retVal[k] += W*(digamma(sum(priorList)) - digamma(priorList[k]))
 		
 	return retVal
 
 #The hessian is actually the sum of two matrices: a diagonal matrix and a constant-value matrix.
 #We'll write two functions to get both
-def priorHessianConst(priorList, vVector):
+def priorHessianConst(priorList, vVector, W = None):
 	total = 0
 	for i in range(0, len(vVector)):
 		total += float(vVector[i]) / (sum(priorList) + i)**2
+	if (W != None):
+		total += W*trigamma(sum(priorList))
 	return total
 
-def priorHessianDiag(priorList, uMatrix):
+def priorHessianDiag(priorList, uMatrix, W = None):
   K = len(uMatrix)
   retVal = [0]*K
   for k in range(0, K):
     for i in range(0, len(uMatrix[k])):
       retVal[k] -= uMatrix[k][i] / (priorList[k] + i)**2
+  if (W != None):
+    for k in range(0, K):
+      retVal[k] -= W*trigamma(priorList[k])
   return retVal
 
 	
@@ -102,39 +128,39 @@ def getPredictedStepAlt(hConst, hDiag, gradient, alphas):
   return retVal
 
 #The priors and data are global, so we don't need to pass them in
-def getTotalLoss(trialPriors, uMatrix, vVector):
-  return -1*dirichLogProb(trialPriors, uMatrix, vVector)
+def getTotalLoss(trialPriors, uMatrix, vVector, Beta = None, W = None):
+  return -1*dirichLogProb(trialPriors, uMatrix, vVector, Beta = None, W = None)
 	
-def predictStepUsingHessian(gradient, priors, uMatrix, vVector):
-	totalHConst = priorHessianConst(priors, vVector)
-	totalHDiag = priorHessianDiag(priors, uMatrix)		
+def predictStepUsingHessian(gradient, priors, uMatrix, vVector, W = None):
+	totalHConst = priorHessianConst(priors, vVector, W)
+	totalHDiag = priorHessianDiag(priors, uMatrix, W)
 	return getPredictedStep(totalHConst, totalHDiag, gradient)
 	
-def predictStepLogSpace(gradient, priors, uMatrix, vVector):
-	totalHConst = priorHessianConst(priors, vVector)
-	totalHDiag = priorHessianDiag(priors, uMatrix)
+def predictStepLogSpace(gradient, priors, uMatrix, vVector, W = None):
+	totalHConst = priorHessianConst(priors, vVector, W)
+	totalHDiag = priorHessianDiag(priors, uMatrix, W)
 	return getPredictedStepAlt(totalHConst, totalHDiag, gradient, priors)
 	
 
 # Returns whether it's a good step, and the loss	
-def testTrialPriors(trialPriors, uMatrix, vVector):
+def testTrialPriors(trialPriors, uMatrix, vVector, Beta = None, W = None):
 	for alpha in trialPriors: 
 		if alpha <= 0: 
 			return float("inf")
 		
-	return getTotalLoss(trialPriors, uMatrix, vVector)
+	return getTotalLoss(trialPriors, uMatrix, vVector, Beta, W)
 	
 def sqVectorSize(v):
 	s = 0
 	for i in range(0, len(v)): s += v[i] ** 2
 	return s
 
-def findDirichletPriors(uMatrix, vVector, initAlphas, verbose):
+def findDirichletPriors(uMatrix, vVector, initAlphas, verbose, Beta = None, W = None):
   priors = initAlphas
 
   # Let the learning begin!!
   #Only step in a positive direction, get the current best loss.
-  currentLoss = getTotalLoss(priors, uMatrix, vVector)
+  currentLoss = getTotalLoss(priors, uMatrix, vVector, Beta, W)
 
   gradientToleranceSq = 2 ** -10
   learnRateTolerance = 2 ** -20
@@ -144,7 +170,7 @@ def findDirichletPriors(uMatrix, vVector, initAlphas, verbose):
     count += 1
     
     #Get the data for taking steps
-    gradient = priorGradient(priors, uMatrix, vVector)
+    gradient = priorGradient(priors, uMatrix, vVector, Beta, W)
     gradientSize = sqVectorSize(gradient) 
     if (verbose): print  count, "Loss: ", currentLoss, ", Priors: ", priors, ", Gradient Size: ", gradientSize
     
@@ -152,7 +178,7 @@ def findDirichletPriors(uMatrix, vVector, initAlphas, verbose):
       if (verbose): print "Converged with small gradient"
       return priors
     
-    trialStep = predictStepUsingHessian(gradient, priors, uMatrix, vVector)
+    trialStep = predictStepUsingHessian(gradient, priors, uMatrix, vVector, W)
     
     #First, try the second order method
     trialPriors = [0]*len(priors)
@@ -161,20 +187,20 @@ def findDirichletPriors(uMatrix, vVector, initAlphas, verbose):
     #TODO: Check for taking such a small step that the loss change doesn't register (essentially converged)
     #  Fix by ending
     
-    loss = testTrialPriors(trialPriors, uMatrix, vVector)
+    loss = testTrialPriors(trialPriors, uMatrix, vVector, Beta, W)
     if loss < currentLoss:
       currentLoss = loss
       priors = trialPriors
       continue
     
-    trialStep = predictStepLogSpace(gradient, priors, uMatrix, vVector)
+    trialStep = predictStepLogSpace(gradient, priors, uMatrix, vVector, W)
     trialPriors = [0]*len(priors)
     for i in range(0, len(priors)): 
       try:
         trialPriors[i] = priors[i] * math.exp(trialStep[i])
       except:
         trialPriors[i] = priors[i]
-    loss = testTrialPriors(trialPriors, uMatrix, vVector)
+    loss = testTrialPriors(trialPriors, uMatrix, vVector, Beta, W)
 
     #Step in the direction of the gradient until there is a loss improvement
     learnRate = 1.0
@@ -182,7 +208,7 @@ def findDirichletPriors(uMatrix, vVector, initAlphas, verbose):
       learnRate *= 0.9
       trialPriors = [0]*len(priors)
       for i in range(0, len(priors)): trialPriors[i] = priors[i] + gradient[i]*learnRate
-      loss = testTrialPriors(trialPriors, uMatrix, vVector)
+      loss = testTrialPriors(trialPriors, uMatrix, vVector, Beta, W)
 
     if (learnRate < learnRateTolerance):
       if (verbose): print "Converged with small learn rate"
