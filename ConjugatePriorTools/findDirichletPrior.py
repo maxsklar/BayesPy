@@ -38,12 +38,10 @@ parser = OptionParser()
 parser.add_option('-s', '--sampleRate', dest='sampleRate', default='1', help='Randomly sample this fraction of rows')
 parser.add_option('-K', '--numCategories', dest='K', default='2', help='The number of (tab separated) categories that are being counted')
 parser.add_option('-M', '--maxCountPerRow', dest='M', type=int, default=sys.maxint, help='The maximum number of the count per row.  Setting this lower increases the running time')
-parser.add_option('-V', '--verbose', dest='V', default="True", help='Whether the print out the debug information in the calculation')
 parser.add_option("-L", '--loglevel', action="store", dest="loglevel", default='DEBUG', help="don't print status messages to stdout")
 parser.add_option('-H', '--hyperPrior', dest='H', default="", help='The hyperprior of the Dirichlet (paper coming soon!) comma separated K+1 values (Beta then W)')
 
 (options, args) = parser.parse_args()
-verbose = options.V == "True"
 
 K = int(options.K)
 
@@ -109,7 +107,7 @@ for row in reader:
 			if (len(vVector) == j): vVector.append(0)
 			vVector[j] += 1
 
-	if (idx % 1000000) == 0: print "Loading Data", idx
+	if (idx % 1000000) == 0: logging.debug("Loading Data: %s rows done" % idx)
 
 dataLoadTime = time.time()
 logging.debug("loaded %s records into memory" % idx)
@@ -126,8 +124,8 @@ for i in range(0, K):
   priors[i] /= priorSum
   priors[i] += 0.01 # Nudge to prevent zero
 
-verbose = options.V == "True"
-priors = DME.findDirichletPriors(uMatrix, vVector, priors, verbose, Beta, W)	
+priors = DME.findDirichletPriors(uMatrix, vVector, priors, Beta, W)	
+
 print "Final priors: ", priors
 logging.debug("Final average loss: %s" % DME.getTotalLoss(priors, uMatrix, vVector, Beta, W))
 

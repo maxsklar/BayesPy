@@ -9,6 +9,7 @@
 
 import math
 import random
+import logging
 import scipy.special as mathExtra
 
 def digamma(x): return float(mathExtra.psi(x))
@@ -155,7 +156,7 @@ def sqVectorSize(v):
 	for i in range(0, len(v)): s += v[i] ** 2
 	return s
 
-def findDirichletPriors(uMatrix, vVector, initAlphas, verbose, Beta = None, W = None):
+def findDirichletPriors(uMatrix, vVector, initAlphas, Beta = None, W = None):
   priors = initAlphas
 
   # Let the learning begin!!
@@ -172,10 +173,10 @@ def findDirichletPriors(uMatrix, vVector, initAlphas, verbose, Beta = None, W = 
     #Get the data for taking steps
     gradient = priorGradient(priors, uMatrix, vVector, Beta, W)
     gradientSize = sqVectorSize(gradient) 
-    if (verbose): print  count, "Loss: ", currentLoss, ", Priors: ", priors, ", Gradient Size: ", gradientSize
+    logging.debug("Iteration: %s Loss: %s ,Priors: %s, Gradient Size: %s" % (count, currentLoss, priors, gradientSize))
     
     if (gradientSize < gradientToleranceSq):
-      if (verbose): print "Converged with small gradient"
+      logging.debug("Converged with small gradient")
       return priors
     
     trialStep = predictStepUsingHessian(gradient, priors, uMatrix, vVector, W)
@@ -211,11 +212,11 @@ def findDirichletPriors(uMatrix, vVector, initAlphas, verbose, Beta = None, W = 
       loss = testTrialPriors(trialPriors, uMatrix, vVector, Beta, W)
 
     if (learnRate < learnRateTolerance):
-      if (verbose): print "Converged with small learn rate"
+      logging.debug("Converged with small learn rate")
       return priors
 
     currentLoss = loss
     priors = trialPriors
     
-  if (verbose): print "Reached max iterations"
+  logging.debug("Reached max iterations")
   return priors
