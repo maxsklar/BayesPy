@@ -52,7 +52,7 @@ if not isinstance(numeric_level, int):
     raise ValueError('Invalid log level: %s' % loglevel)
 logging.basicConfig(level=numeric_level)
 
-if (verbose): print "K = " + str(K)
+logging.debug("K = " + str(K))
 
 # TODO(max): write up a paper describing the hyperprior and link it.
 W = 0
