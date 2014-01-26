@@ -119,7 +119,7 @@ for row in uMatrix:
 		raise Exception("You can't have any columns with all 0s, unless you provide a hyperprior (-H)")
 
 initPriorWeight = 1
-priorSum = sum(priors)
+priorSum = sum(priors) + 0.01 # Nudge to prevent zero
 for i in range(0, K):
   priors[i] /= priorSum
   priors[i] += 0.01 # Nudge to prevent zero
