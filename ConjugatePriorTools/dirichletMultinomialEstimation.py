@@ -124,7 +124,7 @@ def getPredictedStepAlt(hConst, hDiag, gradient, alphas):
   S = sum(Ss)
 
   for i in range(0, K): 
-    retVal[i] = gradient[i] / denominators[k] * (1 - hConst * alphas[i] * S)
+    retVal[i] = gradient[i] / denominators[i] * (1 - hConst * alphas[i] * S)
 
   return retVal
 
