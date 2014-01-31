@@ -63,6 +63,9 @@ if (len(Hstr) == K + 1):
 	for i in range(0, K): Beta[i] = float(Hstr[i])
 	W = float(Hstr[K])
 	hasHyperprior = True
+else:
+	Beta = None
+	W = None
 
 logging.debug("Beta = " + str(Beta))
 logging.debug("W = " + str(W))
