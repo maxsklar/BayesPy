@@ -8,6 +8,7 @@
 # Copyright 2013 Max Sklar
 
 import math
+import logging
 import random
 import scipy.special as mathExtra
 
@@ -117,7 +118,7 @@ def sqVectorSize(v):
 	for i in range(0, len(v)): s += v[i] ** 2
 	return s
 
-def findDirichletPriors(ss, initAlphas, verbose):
+def findDirichletPriors(ss, initAlphas):
   priors = initAlphas
 
   # Let the learning begin!!
@@ -134,10 +135,10 @@ def findDirichletPriors(ss, initAlphas, verbose):
     #Get the data for taking steps
     gradient = getGradientForMultinomials(priors, ss)
     gradientSize = sqVectorSize(gradient) 
-    if (verbose): print  count, "Loss: ", currentLoss, ", Priors: ", priors, ", Gradient Size: ", gradientSize, gradient
+    logging.debug(count, "Loss: ", currentLoss, ", Priors: ", priors, ", Gradient Size: ", gradientSize, gradient)
     
     if (gradientSize < gradientToleranceSq):
-      if (verbose): print "Converged with small gradient"
+      logging.debug("Converged with small gradient")
       return priors
     
     trialStep = predictStepUsingHessian(gradient, priors, ss)
@@ -167,15 +168,15 @@ def findDirichletPriors(ss, initAlphas, verbose):
       loss = testTrialPriors(trialPriors, ss)
 
     if (learnRate < learnRateTolerance):
-      if (verbose): print "Converged with small learn rate"
+      logging.debug("Converged with small learn rate")
       return priors
 
     currentLoss = loss
     priors = trialPriors
     
-  if (verbose): print "Reached max iterations"
+  logging.debug("Reached max iterations")
   return priors
 
-def findDirichletPriorsFromMultinomials(multinomials, initAlphas, verbose):
+def findDirichletPriorsFromMultinomials(multinomials, initAlphas):
 	ss = getSufficientStatistic(multinomials)
-	return findDirichletPriors(ss, initAlphas, verbose)
+	return findDirichletPriors(ss, initAlphas)
