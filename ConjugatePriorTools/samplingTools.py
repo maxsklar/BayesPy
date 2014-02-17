@@ -20,7 +20,7 @@ def chinese_restaurant_process(number_of_customers_param, alpha_param):
     open_table = 0
     alpha = float(alpha_param)
     number_of_customers = long(number_of_customers_param) - 1
-    assert number_of_customers > 0
+    assert number_of_customers >= 0
     table_assignments = defaultdict(int)
 
     #assign first person to table 1
