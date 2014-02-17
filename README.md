@@ -20,4 +20,12 @@ cat oneDoublesided.csv | ./findDirichletPrior.py
 -- coin in the input is fair except two coins: one is double sided heads, and the other tails.
 -- Dirichlet distributions cannot handle this trimodal data very well, but it'll end up giving a compromise solution
 
+
+#Using the priors
+You can test the strength of your prior using the H parameter. Higher values for Beta will give lower probabilities.
+
+python findDirichletPrior.py -H1,4,5 < /dev/null
+
+
+
 gammaDistTools is not used.  These functions will be used for a future gamma distribution estimations.
