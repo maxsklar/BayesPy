@@ -40,11 +40,12 @@ parser.add_option('-K', '--numCategories', dest='K', default='2', help='The numb
 parser.add_option('-M', '--maxCountPerRow', dest='M', type=int, default=sys.maxint, help='The maximum number of the count per row.  Setting this lower increases the running time')
 parser.add_option("-L", '--loglevel', action="store", dest="loglevel", default='DEBUG', help="don't print status messages to stdout")
 parser.add_option('-H', '--hyperPrior', dest='H', default="", help='The hyperprior of the Dirichlet (paper coming soon!) comma separated K+1 values (Beta then W)')
+parser.add_option('-i', '--iterations', dest='iterations', default='50', help='How many iterations to do')
 
 (options, args) = parser.parse_args()
 
 K = int(options.K)
-
+iterations = int(options.iterations)
 #Set the log level
 log_level = options.loglevel
 numeric_level = getattr(logging, log_level, None)
@@ -127,7 +128,7 @@ for i in range(0, K):
   priors[i] /= priorSum
   priors[i] += 0.01 # Nudge to prevent zero
 
-priors = DME.findDirichletPriors(uMatrix, vVector, priors, Beta, W)	
+priors = DME.findDirichletPriors(uMatrix, vVector, priors, iterations, Beta, W)	
 
 print "Final priors: ", priors
 logging.debug("Final average loss: %s" % DME.getTotalLoss(priors, uMatrix, vVector, Beta, W))

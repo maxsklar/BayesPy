@@ -15,7 +15,6 @@ import random
 def drawFromDirichlet(alphas):
   K = len(alphas)
   multinomial = [0]*K
-  runningTotal = 0
   for i in range(0, K): multinomial[i] = random.gammavariate(alphas[i], 1)
   S = sum(multinomial)
   return map(lambda i: i/S, multinomial)
@@ -30,7 +29,7 @@ def drawCategory(distribution):
     runningTotal += distribution[k]
     if (r < runningTotal): return k
   
-  return K
+  return K-1
 
 def sampleFromMultinomial(multinomial, M):
   buckets = [0]*len(multinomial)

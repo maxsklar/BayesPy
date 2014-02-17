@@ -156,7 +156,7 @@ def sqVectorSize(v):
 	for i in range(0, len(v)): s += v[i] ** 2
 	return s
 
-def findDirichletPriors(uMatrix, vVector, initAlphas, Beta = None, W = None):
+def findDirichletPriors(uMatrix, vVector, initAlphas, iterations, Beta = None, W = None):
   priors = initAlphas
 
   # Let the learning begin!!
@@ -167,7 +167,7 @@ def findDirichletPriors(uMatrix, vVector, initAlphas, Beta = None, W = None):
   learnRateTolerance = 2 ** -20
 
   count = 0
-  while(count < 50):
+  while(count < iterations):
     count += 1
     
     #Get the data for taking steps
