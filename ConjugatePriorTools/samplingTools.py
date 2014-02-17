@@ -10,6 +10,41 @@
 
 import math
 import random
+from collections import defaultdict
+
+
+"""
+http://en.wikipedia.org/wiki/Chinese_restaurant_process
+"""
+def chinese_restaurant_process(number_of_customers_param, alpha_param):
+    open_table = 0
+    alpha = float(alpha_param)
+    number_of_customers = long(number_of_customers_param) - 1
+    assert number_of_customers > 0
+    table_assignments = defaultdict(int)
+
+    #assign first person to table 1
+    table_assignments[open_table] += 1
+
+    for customer_number in xrange(number_of_customers):
+        new_table_prob = alpha / (customer_number + alpha)
+        use_new_table = random.random() < new_table_prob
+
+        if use_new_table:
+            open_table += 1
+            table_assignments[open_table] += 1
+        else:
+            distribution = []
+            for table_index, number_of_people_sitting_at_table in table_assignments.iteritems():
+                probability_of_table = number_of_people_sitting_at_table/float(customer_number+alpha)
+                distribution.append(probability_of_table)
+            
+            idx = drawCategory(distribution)
+            assert(idx in table_assignments)
+            table_assignments[idx] += 1
+
+    return table_assignments
+
 
 # Returns a discrete distribution
 def drawFromDirichlet(alphas):
