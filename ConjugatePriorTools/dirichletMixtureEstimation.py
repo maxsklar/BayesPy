@@ -35,3 +35,19 @@ class DirichletMixtureModel:
       
       self.dirichlets = dirichlets
       self.mixture = mixture
+      
+class DirichletMixtureModelHyperparams:
+  # C: number of components
+  # K: number of categories
+  # beta, W: the hyperdirichlet over the dirichlet distribution
+  # mixtureDirich: a dirichlet distribution representing the prior over the mixture parameters
+  def __init__(self, C, K, beta, W, mixtureDirich):
+    self.C = C
+    self.K = K
+    
+    if (len(beta) != K): logging.error("hyperdirichlet beta have K=" + str(K) + " parameters")
+    self.beta = beta
+    self.W = W
+    
+    if (len(mixtureDirich) != C): logging.error("mixture dirichlet must have C=" + str(C) + " components")
+    self.mixtureDirich = mixtureDirich
