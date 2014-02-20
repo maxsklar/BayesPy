@@ -51,3 +51,35 @@ class DirichletMixtureModelHyperparams:
     
     if (len(mixtureDirich) != C): logging.error("mixture dirichlet must have C=" + str(C) + " components")
     self.mixtureDirich = mixtureDirich
+
+# log(base) + log(base+1) + log(base+2) + ... + log(base+n-1)
+def sumOfLogs(base, n):
+  S = 0
+  for i in range(0, n): S += math.log(base + i)
+  return S
+  
+def logProbsToProbabilityDistribution(logProbs):
+  highest = max(logProbs)
+  logProbs = map(lambda x: x - highest, logProbs)
+  unnormalized = map(lambda x: math.exp(x), logProbs)
+  S = sum(unnormalized)
+  return map(lambda x: float(x) / S, unnormalized)
+
+# Input counts: A K-dimensional count vector for a given row
+# we want to know which component of the mixture model best describes the counts
+# output: a C-dimensional probability distribution over the possible components
+def getComponentProbabilitiesForCounts(counts, dmm):
+  logProbs = [0]*C
+  
+  for c in range(0, dmm.C):
+    for k in range(0, dmm.K): logProbs[c] += sumOfLogs(dmm.dirichlets[c][k], x[k])
+    logProbs[c] -= sumOfLogs(sum(dmm.dirichlets[c]), sum(x))
+    logProbs[c] += math.log(dmm.mixture(c))
+  
+  logProbsToProbabilityDistribution(logProbs)
+  
+  
+  
+  
+  
+  
