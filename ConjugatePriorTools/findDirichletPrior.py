@@ -80,10 +80,7 @@ reader = csv.reader(sys.stdin, delimiter='\t')
 logging.debug("Loading data")
 priors = [0.]*K
 
-# Special data vector
-uMatrix = []
-for i in range(0, K): uMatrix.append([])
-vVector = []
+dataObj = DME.CompressedRowData(K)
 
 idx = 0
 for row in reader:
@@ -100,16 +97,8 @@ for row in reader:
 		
 		sumData = sum(data)
 		weightForMean = 1.0 / (1.0 + sumData)
-		for i in range(0, K): 
-			priors[i] += data[i] * weightForMean
-			uVector = uMatrix[i]
-			for j in range(0, data[i]):
-				if (len(uVector) == j): uVector.append(0)
-				uVector[j] += 1
-			
-		for j in range(0, sumData):
-			if (len(vVector) == j): vVector.append(0)
-			vVector[j] += 1
+		for i in range(0, K): priors[i] += data[i] * weightForMean
+		dataObj.appendRow(data, 1)
 
 	if (idx % 1000000) == 0: logging.debug("Loading Data: %s rows done" % idx)
 
@@ -117,7 +106,7 @@ dataLoadTime = time.time()
 logging.debug("loaded %s records into memory" % idx)
 logging.debug("time to load memory: %s " % (dataLoadTime - startTime))
 
-for row in uMatrix:
+for row in dataObj.U:
 	if len(row) == 0 and not hasHyperprior:
 		# TODO(max): write up a paper describing the hyperprior and link it.
 		raise Exception("You can't have any columns with all 0s, unless you provide a hyperprior (-H)")
@@ -128,10 +117,10 @@ for i in range(0, K):
   priors[i] /= priorSum
   priors[i] += 0.01 # Nudge to prevent zero
 
-priors = DME.findDirichletPriors(uMatrix, vVector, priors, iterations, Beta, W)	
+priors = DME.findDirichletPriors(dataObj, priors, iterations, Beta, W)	
 
 print "Final priors: ", priors
-logging.debug("Final average loss: %s" % DME.getTotalLoss(priors, uMatrix, vVector, Beta, W))
+logging.debug("Final average loss: %s" % DME.getTotalLoss(priors, dataObj, Beta, W))
 
 totalTime = time.time() - dataLoadTime
 logging.debug("Time to calculate: %s" % totalTime)

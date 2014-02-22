@@ -77,9 +77,3 @@ def getComponentProbabilitiesForCounts(counts, dmm):
     logProbs[c] += math.log(dmm.mixture(c))
   
   logProbsToProbabilityDistribution(logProbs)
-  
-  
-  
-  
-  
-  
