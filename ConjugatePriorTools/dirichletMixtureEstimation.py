@@ -77,3 +77,70 @@ def getComponentProbabilitiesForCounts(counts, dmm):
     logProbs[c] += math.log(dmm.mixture(c))
   
   logProbsToProbabilityDistribution(logProbs)
+
+# Input data: N rows, K columns of count data
+# params: DirichletMixtureModel (current model)
+# hyperparams: DirichletMixtureModelHyperparams
+# output: a new DirichletMixtureModel based on the E-M algorithm
+def updateMixtureModel(data, params, hyperParams):
+  # Initialize parameter data structs
+  C = params.C
+  K = params.K
+  componentCompressedData = []
+  for c in range(0, C): componentCompressedData.append(DME.CompressedRowData(K))
+  mixtureCounts = [0.]*C
+
+  # Loop through the data and update param data structs
+  for row in data:
+    cProbs = getComponentProbabilitiesForCounts(row, params)
+    for c in range(0, C):
+      cProb = cProbs[c]
+      componentCompressedData[c].appendRow(row, cProb)
+      mixtureCounts[c] += cProb
+
+  # Compute information for new model
+  dirichlets = []
+  for c in range(0, C):
+    D = DME.findDirichletPriors(componentCompressedData[c], [1.]*K, 50, hyperParams.beta, hyperParams.W)
+    dirichlets.append(D)
+  
+  mixtureD = map(lambda c: mixtureCounts[c] + hyperParams.mixtureDirich[c], range(0, C))
+  S = sum(mixtureD)
+  mixture = map(lambda x: float(x) / S, mixtureD)
+
+  return DirichletMixtureModel(C, K, dirichlets, mixture)
+
+# Come up with an initial model
+def initMixtureModel(data, hyperParams):
+  # Initialize parameter data structs
+  C = params.C
+  K = params.K
+  componentCompressedData = []
+  for c in range(0, C): componentCompressedData.append(DME.CompressedRowData(K))
+  mixtureCounts = [0.]*C
+
+  # Loop through the data and update param data structs
+  for n in range(0, len(data)):
+    c = n % C
+    componentCompressedData[c].appendRow(row, 1)
+    mixtureCounts[c] += 1
+
+  # Compute information for new model
+  dirichlets = []
+  for c in range(0, C):
+    D = DME.findDirichletPriors(componentCompressedData[c], [1.]*K, 50, hyperParams.beta, hyperParams.W)
+    dirichlets.append(D)
+
+  mixtureD = map(lambda c: mixtureCounts[c] + hyperParams.mixtureDirich[c], range(0, C))
+  S = sum(mixtureD)
+  mixture = map(lambda x: float(x) / S, mixtureD)
+
+  return DirichletMixtureModel(C, K, dirichlets, mixture)
+
+def computeDirichletMixture(data, hyperParams, iterations):
+  model = initMixtureModel(data, hyperParams)
+  for i in range(0, iterations):
+    logging.debug("Iter: " + str(i) + ", model = " + str(model))
+    model = updateMixtureModel(data, model, hyperParams)
+
+  return model
