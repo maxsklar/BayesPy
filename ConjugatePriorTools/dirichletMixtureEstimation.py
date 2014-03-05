@@ -38,14 +38,18 @@ class DirichletMixtureModel:
       self.dirichlets = dirichlets
       self.mixture = mixture
   
-  def outputToFile(self, filename):
-    out = file(filename, 'w')
+  def outputToFile(self, out):
     out.write("\t".join(map(str, self.mixture)))
     out.write("\n")
     for d in self.dirichlets: 
       out.write("\t".join(map(str, d)))
       out.write("\n")
     out.close
+    
+  def logToDebug(self):
+    logging.debug("\t".join(map(str, self.mixture)))
+    for d in self.dirichlets: 
+      logging.debug("\t".join(map(str, d)))
   
   def sampleRow(self, amount):
     category = ST.drawCategory(self.mixture)
@@ -100,14 +104,13 @@ def logProbsToProbabilityDistribution(logProbs):
 # we want to know which component of the mixture model best describes the counts
 # output: a C-dimensional probability distribution over the possible components
 def getComponentProbabilitiesForCounts(counts, dmm):
-  logProbs = [0]*C
-  
+  logProbs = [0]*dmm.C
   for c in range(0, dmm.C):
-    for k in range(0, dmm.K): logProbs[c] += sumOfLogs(dmm.dirichlets[c][k], x[k])
-    logProbs[c] -= sumOfLogs(sum(dmm.dirichlets[c]), sum(x))
-    logProbs[c] += math.log(dmm.mixture(c))
+    for k in range(0, dmm.K): logProbs[c] += sumOfLogs(dmm.dirichlets[c][k], counts[k])
+    logProbs[c] -= sumOfLogs(sum(dmm.dirichlets[c]), sum(counts))
+    logProbs[c] += math.log(dmm.mixture[c])
   
-  logProbsToProbabilityDistribution(logProbs)
+  return logProbsToProbabilityDistribution(logProbs)
 
 # Input data: N rows, K columns of count data
 # params: DirichletMixtureModel (current model)
@@ -144,8 +147,8 @@ def updateMixtureModel(data, params, hyperParams):
 # Come up with an initial model
 def initMixtureModel(data, hyperParams):
   # Initialize parameter data structs
-  C = params.C
-  K = params.K
+  C = hyperParams.C
+  K = hyperParams.K
   componentCompressedData = []
   for c in range(0, C): componentCompressedData.append(DME.CompressedRowData(K))
   mixtureCounts = [0.]*C
@@ -153,6 +156,7 @@ def initMixtureModel(data, hyperParams):
   # Loop through the data and update param data structs
   for n in range(0, len(data)):
     c = n % C
+    row = data[n]
     componentCompressedData[c].appendRow(row, 1)
     mixtureCounts[c] += 1
 
