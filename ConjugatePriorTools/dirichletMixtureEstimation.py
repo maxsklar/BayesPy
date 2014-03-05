@@ -14,6 +14,7 @@
 import math
 import random
 import logging
+import csv
 import dirichletMultinomialEstimation as DME
 
 class DirichletMixtureModel:
@@ -35,7 +36,25 @@ class DirichletMixtureModel:
       
       self.dirichlets = dirichlets
       self.mixture = mixture
-      
+  
+  def outputToFile(self, filename):
+    out = file(filename, 'w')
+    out.write("\t".join(map(str, self.mixture)))
+    out.write("\n")
+    for d in self.dirichlets: 
+      out.write("\t".join(map(str, d)))
+      out.write("\n")
+    out.close
+
+def importDirichletMixtureFile(infile):  
+  reader = csv.reader(infile, delimiter='\t')
+  mixture = map(float, reader.next())
+  dirichlets = []
+  for row in reader: dirichlets.append(map(float, row))
+  K = 2
+  if (len(dirichlets) > 0): K = len(dirichlets[0])
+  return DirichletMixtureModel(len(mixture), K, dirichlets, mixture)
+
 class DirichletMixtureModelHyperparams:
   # C: number of components
   # K: number of categories
