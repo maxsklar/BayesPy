@@ -16,6 +16,7 @@ import random
 import logging
 import csv
 import dirichletMultinomialEstimation as DME
+import samplingTools as ST
 
 class DirichletMixtureModel:
   # C: number of components
@@ -45,8 +46,19 @@ class DirichletMixtureModel:
       out.write("\t".join(map(str, d)))
       out.write("\n")
     out.close
+  
+  def sampleRow(self, amount):
+    category = ST.drawCategory(self.mixture)
+    dirichlet = self.dirichlets[category]
+    multinomial = ST.drawFromDirichlet(dirichlet)
+    retVal = [0]*self.K
+    for i in range(0, amount):
+      k = ST.drawCategory(multinomial)
+      retVal[k] += 1
+    return retVal
 
-def importDirichletMixtureFile(infile):  
+def importDirichletMixtureFile(filename):
+  infile = file(filename, 'r')
   reader = csv.reader(infile, delimiter='\t')
   mixture = map(float, reader.next())
   dirichlets = []
