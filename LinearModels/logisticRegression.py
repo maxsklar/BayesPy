@@ -10,6 +10,7 @@ import math
 import logging
 import random
 import scipy.special as mathExtra
+import numpy.random as R
 
 # dataPoints: a list of data points. Each data point is a map from a feature name (a string) to a number
 # if a feature doesn't exist in the map, it is assumed to be zero
@@ -18,16 +19,16 @@ import scipy.special as mathExtra
 # params: the parameters for each feature (a map). The parameters are doubles, and assumed to be zero 
 #  if they are not in the map
 # convergence: a small number to detect convergence
-def batchCompute(dataPoints, labels, L1, convergence, maxIters):
+def batchCompute(dataPoints, labels, L1, convergence, maxIters, allowLogging = True):
   params = {}
   for i in range(0, maxIters):
     (params, maxDist) = batchStep(dataPoints, labels, L1, params)
-    logging.debug("Iteration " + str(i) + ", Dist: " + str(maxDist))
+    if (allowLogging): logging.debug("Iteration " + str(i) + ", Dist: " + str(maxDist))
     if (maxDist < convergence):
-      logging.debug("Converge criteria met.")
+      if (allowLogging): logging.debug("Converge criteria met.")
       return params
 
-  logging.debug("Convergence did not occur in " + str(maxIters) + " iterations")
+  if (allowLogging): logging.debug("Convergence did not occur in " + str(maxIters) + " iterations")
   return params
 
 # dataPoints: a list of data points. Each data point is a map from a feature name (a string) to a number
@@ -105,8 +106,36 @@ def energy(dataPoint, params):
 def labelToInt(label):
   if (label): return 1
   return 0
-  
-  
-  
-  
-  
+
+# Parameter Tuning
+# Needs logLevel to turn logging off for each run
+def findOptimalL1Regulizer(trainingSet, trainingLabels, testSet, testLabels, conv, maxIter):
+  logL1 = 0
+  currentLoss = float("inf")
+  for i in range(0, 40):
+    newLogL1 = logL1 + R.normal()
+    L1 = math.exp(newLogL1)
+    
+    params = batchCompute(trainingSet, trainingLabels, L1, conv, maxIter, False)
+    avgLoss = computeLossForDataset(testSet, testLabels, params)
+    
+    accept = avgLoss < currentLoss
+    logging.debug("Tried L1: " + str(L1) + ", loss: " + str(avgLoss) + ", accepted? " + str(accept))
+    if (accept):
+      currentLoss = avgLoss
+      logL1 = newLogL1
+  return math.exp(logL1)
+
+def computeLossForDataset(dataPoints, labels, params):
+  totalLoss = 0
+  totalDataPoints = 0
+  for dataPoint, label in zip(dataPoints, labels):
+    totalLoss += computeLossForDatapoint(dataPoint, label, params)
+    totalDataPoints += 1
+  return totalLoss / totalDataPoints
+
+def computeLossForDatapoint(dataPoint, label, params):
+  E = energy(dataPoint, params)
+  expEnergy = math.exp(E)
+  if (label): return math.log(expEnergy + 1) - E
+  return math.log(expEnergy + 1)

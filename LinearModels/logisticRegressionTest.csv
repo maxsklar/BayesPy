@@ -18,3 +18,10 @@
 1	bacon	amazing	delicious
 1	good	service
 0	bad	service
+0	terrible	bad	service	sucks
+0	fish	sucks
+1	tacos	to_die_for
+1	bacon	tacos	to_die_for
+0	crappy	wait
+1	delicious	fish
+1	to_die_for	bacon

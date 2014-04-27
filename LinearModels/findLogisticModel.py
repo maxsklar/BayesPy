@@ -26,12 +26,15 @@ import logisticRegression as LR
 import time
 from optparse import OptionParser
 import logging
+from random import shuffle
 
 startTime = time.time()
 parser = OptionParser()
 parser.add_option('-s', '--sampleRate', dest='sampleRate', default='1', help='Randomly sample this fraction of rows')
 parser.add_option("-L", '--loglevel', action="store", dest="loglevel", default='DEBUG', help="don't print status messages to stdout")
-parser.add_option("-R", '--L1', action="store", dest="L1", default='0', help="L1 Lasso regularizer param")
+parser.add_option("-R", '--L1', action="store", dest="L1", default='-1', help="L1 Lasso regularizer param")
+parser.add_option("-T", '--hyperparamTuningSetSize', action="store", dest="hyperparamTuningSetSize", default='1000', help="Size of set on which to train hyperparams")
+parser.add_option("-H", '--tuningHoldoutPercent', action="store", dest="tuningHoldoutPercent", default='0.5', help="Sample rate for holdout of hyperparameter trainer")
 parser.add_option('-i', '--iterations', dest='iterations', default='50', help='How many iterations to do')
 
 (options, args) = parser.parse_args()
@@ -55,6 +58,7 @@ logging.debug("Loading data")
 
 data = []
 labels = []
+data_labels = []
 idx = 0
 for row in reader:
   idx += 1
@@ -62,7 +66,7 @@ for row in reader:
   if (random.random() < float(options.sampleRate)):
     label = (not (int(row[0]) == 0))
 
-    features = {}
+    features = {"__CONST__": 1}
     for i in range(1, len(row)):
       splitRow = row[i].split(":")
       feature = splitRow[0]
@@ -71,13 +75,38 @@ for row in reader:
 
     labels.append(label)
     data.append(features)
+    data_labels.append([features, label])
   if (idx % 1000000) == 0: logging.debug("Loading Data: %s rows done" % idx)
 
 dataLoadTime = time.time()
 logging.debug("loaded %s records into memory" % idx)
 logging.debug("time to load memory: %s " % (dataLoadTime - startTime))
 
-params = LR.batchCompute(data, labels, float(options.L1), 0.001, iterations)	
+L1 = float(options.L1)
+if (L1 >= 0):
+  logging.debug("Using given L1 regularizer: " + str(L1))
+else:
+  logging.debug("Finding optimal regularizer")
+  shuffle(data_labels)
+  tuningSetSize = int(options.hyperparamTuningSetSize)
+
+  trainingSet = []
+  trainingLabels = []
+  holdoutSet = []
+  holdoutLabels = []
+
+  for tuningData, label in data_labels[:tuningSetSize]:
+    if (random.random() < float(options.tuningHoldoutPercent)):
+      holdoutSet.append(tuningData)
+      holdoutLabels.append(label)
+    else:
+      trainingSet.append(tuningData)
+      trainingLabels.append(label)
+
+  L1 = LR.findOptimalL1Regulizer(trainingSet, trainingLabels, holdoutSet, holdoutLabels, 0.001, 1000)
+  logging.debug("optimal regularizer: " + str(L1))
+
+params = LR.batchCompute(data, labels, L1, 0.001, iterations)	
 
 logging.debug("Printing final weights: ")
 for feature in params:
