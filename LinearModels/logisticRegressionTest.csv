@@ -1,0 +1,20 @@
+1	great	bacon
+1	excellent	bacon
+1	delicious	bacon
+0	terrible	bacon
+0	crappy	bacon
+1	bacon	to_die_for
+1	great	service
+1	service	excellent
+0	terrible	service
+0	horrible	service
+0	crappy	service
+0	horrible	service
+1	excellent	fish	tacos
+1	fish	tacos	to_die_for
+0	fish	tacos	terrible
+1	fish	tacos	delicious
+0	horrible	bacon	tacos
+1	bacon	amazing	delicious
+1	good	service
+0	bad	service
