@@ -112,6 +112,7 @@ def derivativeForFeature(label, count, expEnergy):
   return term1 + term2
 
 def secondDerivativeForFeature(count, expEnergy):
+  if (abs(math.log(expEnergy)) > 50): print expEnergy
   return (count ** 2) * expEnergy / ((1 + expEnergy) ** 2)
 
 def energy(dataPoint, params):
@@ -132,7 +133,8 @@ def findOptimalRegulizers(trainingSet, trainingLabels, testSet, testLabels, conv
   logL1 = 0
   logL2 = 0
   currentLoss = float("inf")
-  for i in range(0, 40):
+  numRejects = 0
+  while numRejects < 10:
     changeL1 = (R.normal() > 0)
     newLogL1 = logL1
     newLogL2 = logL2
@@ -151,6 +153,9 @@ def findOptimalRegulizers(trainingSet, trainingLabels, testSet, testLabels, conv
       currentLoss = avgLoss
       logL1 = newLogL1
       logL2 = newLogL2
+      numRejects = 0
+    else:
+      numRejects += 1
   return (math.exp(logL1), math.exp(logL2))
 
 def computeLossForDataset(dataPoints, labels, params):
