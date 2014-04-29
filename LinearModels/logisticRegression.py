@@ -19,11 +19,11 @@ import numpy.random as R
 # params: the parameters for each feature (a map). The parameters are doubles, and assumed to be zero 
 #  if they are not in the map
 # convergence: a small number to detect convergence
-def batchCompute(dataPoints, labels, L1, convergence, maxIters, allowLogging = True):
+def batchCompute(dataPoints, labels, L1, L2, convergence, maxIters, allowLogging = True):
   params = {}
   for i in range(0, maxIters):
-    (params, maxDist) = batchStep(dataPoints, labels, L1, params)
-    if (allowLogging): logging.debug("Iteration " + str(i) + ", Dist: " + str(maxDist))
+    (params, maxDist, maxDistF) = batchStep(dataPoints, labels, L1, L2, params, allowLogging)
+    if (allowLogging): logging.debug("Iteration " + str(i) + ", Dist: " + str(maxDist) + " on " + maxDistF)
     if (maxDist < convergence):
       if (allowLogging): logging.debug("Converge criteria met.")
       return params
@@ -38,35 +38,48 @@ def batchCompute(dataPoints, labels, L1, convergence, maxIters, allowLogging = T
 # params: the parameters for each feature (a map). The parameters are doubles, and assumed to be zero 
 #  if they are not in the map
 #
-# Returns: (newParams, distance)
+# Returns: (newParams, distance, avgLoss)
 # distance: maximum distance between new and old params
-def batchStep(dataPoints, labels, L1, params):
+def batchStep(dataPoints, labels, L1, L2, params, allowLogging = True):
   featureDerivs = {}
   feature2ndDerivs = {}
+  totalDatapointLoss = 0.0
+  numDatapoints = 0
 
   for dataPoint, label in zip(dataPoints, labels):
     currentEnergy = energy(dataPoint, params)
     expEnergy = math.exp(currentEnergy)
     for feature in dataPoint:
-      value = dataPoint[feature]
-      d1 = derivativeForFeature(label, value, expEnergy)
-      currentFeatureD = featureDerivs.get(feature, 0)
-      featureDerivs[feature] = currentFeatureD + d1
+      count = dataPoint[feature]
       
-      d2 = secondDerivativeForFeature(value, expEnergy)
-      currentFeatureD2 = feature2ndDerivs.get(feature, 0)
-      feature2ndDerivs[feature] = currentFeatureD2 + d2
+      d1 = derivativeForFeature(label, count, expEnergy)
+      featureDerivs[feature] = featureDerivs.get(feature, 0) + d1
+      
+      d2 = secondDerivativeForFeature(count, expEnergy)
+      feature2ndDerivs[feature] = feature2ndDerivs.get(feature, 0) + d2
+    totalDatapointLoss += math.log(expEnergy + 1)
+    if (label): totalDatapointLoss -= currentEnergy
+    numDatapoints += 1
+  
+  totalLoss = totalDatapointLoss / numDatapoints
+  if (allowLogging): logging.debug("Current Loss: " + str(totalLoss))
   
   featuresToLeaveAtZero = set()
   
   maxDistance = 0
+  featureWithMaxDistance = ""
   newParams = {}
+  currentRLoss = 0
   for feature in featureDerivs:
-    deriv = featureDerivs[feature]
     currentValue = params.get(feature, 0)
-    deriv2 = feature2ndDerivs.get(feature, 0)
+    deriv = (featureDerivs[feature] / numDatapoints) + 2*L2*currentValue
+    currentRLoss += L1*abs(currentValue) + L2*(currentValue**2)
+    deriv2 = (feature2ndDerivs.get(feature, 0) / numDatapoints) + 2*L2
+    
+    oldMaxDistance = maxDistance
+    
     if (currentValue > 0):
-      diff =  (deriv + L1) / deriv2
+      diff = (deriv + L1) / deriv2
       maxDistance = max(abs(diff), maxDistance)
       newValue = currentValue - diff
       if (sameSign(newValue, currentValue)): newParams[feature] = newValue
@@ -84,17 +97,22 @@ def batchStep(dataPoints, labels, L1, params):
         diff = (deriv + L1) / deriv2
         maxDistance = max(abs(diff), maxDistance)
         newParams[feature] = currentValue - diff
-  return (newParams, maxDistance)
+    if (maxDistance > oldMaxDistance): featureWithMaxDistance = feature
+  
+  if (allowLogging):
+    logging.debug("Current R Loss: " + str(currentRLoss) + ", Total = " + str(totalLoss + currentRLoss))
+
+  return (newParams, maxDistance, featureWithMaxDistance)
 
 def sameSign(a, b): return (a > 0) == (b > 0)
 
-def derivativeForFeature(label, featureParam, expEnergy):
-  term1 = -1 * labelToInt(label) * featureParam
-  term2 = featureParam * expEnergy / (expEnergy + 1)
+def derivativeForFeature(label, count, expEnergy):
+  term1 = -1 * labelToInt(label) * count
+  term2 = count * expEnergy / (expEnergy + 1)
   return term1 + term2
 
-def secondDerivativeForFeature(featureParam, expEnergy):
-  return (featureParam ** 2) * expEnergy / (expEnergy ** 2)
+def secondDerivativeForFeature(count, expEnergy):
+  return (count ** 2) * expEnergy / ((1 + expEnergy) ** 2)
 
 def energy(dataPoint, params):
   total = 0.0
@@ -109,22 +127,31 @@ def labelToInt(label):
 
 # Parameter Tuning
 # Needs logLevel to turn logging off for each run
-def findOptimalL1Regulizer(trainingSet, trainingLabels, testSet, testLabels, conv, maxIter):
+# return (L1, L2) regularizers
+def findOptimalRegulizers(trainingSet, trainingLabels, testSet, testLabels, conv, maxIter):
   logL1 = 0
+  logL2 = 0
   currentLoss = float("inf")
   for i in range(0, 40):
-    newLogL1 = logL1 + R.normal()
-    L1 = math.exp(newLogL1)
+    changeL1 = (R.normal() > 0)
+    newLogL1 = logL1
+    newLogL2 = logL2
+    if (changeL1): newLogL1 = logL1 + R.normal()
+    else: newLogL2 = logL2 + R.normal()
     
-    params = batchCompute(trainingSet, trainingLabels, L1, conv, maxIter, False)
+    L1 = math.exp(newLogL1)
+    L2 = math.exp(newLogL2)
+    
+    params = batchCompute(trainingSet, trainingLabels, L1, L2, conv, maxIter, False)
     avgLoss = computeLossForDataset(testSet, testLabels, params)
     
     accept = avgLoss < currentLoss
-    logging.debug("Tried L1: " + str(L1) + ", loss: " + str(avgLoss) + ", accepted? " + str(accept))
+    logging.debug("New " + ("L1" if changeL1 else "L2") + ": L1 = " + str(L1) + ", L2 = " + str(L2) + ", loss: " + str(avgLoss) + ", " + ("ACCEPT" if accept else "REJECT"))
     if (accept):
       currentLoss = avgLoss
       logL1 = newLogL1
-  return math.exp(logL1)
+      logL2 = newLogL2
+  return (math.exp(logL1), math.exp(logL2))
 
 def computeLossForDataset(dataPoints, labels, params):
   totalLoss = 0
@@ -139,3 +166,10 @@ def computeLossForDatapoint(dataPoint, label, params):
   expEnergy = math.exp(E)
   if (label): return math.log(expEnergy + 1) - E
   return math.log(expEnergy + 1)
+  
+def computeTrainingLossForDataset(dataPoints, labels, L1, params):
+  datasetLoss = computeLossForDataset(dataPoints, labels, params)
+  l1Loss = 0
+  for feature in params: l1Loss += abs(params[feature])
+  l1Loss *= L1
+  return datasetLoss + l1Loss

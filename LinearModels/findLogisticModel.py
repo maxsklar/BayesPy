@@ -32,7 +32,8 @@ startTime = time.time()
 parser = OptionParser()
 parser.add_option('-s', '--sampleRate', dest='sampleRate', default='1', help='Randomly sample this fraction of rows')
 parser.add_option("-L", '--loglevel', action="store", dest="loglevel", default='DEBUG', help="don't print status messages to stdout")
-parser.add_option("-R", '--L1', action="store", dest="L1", default='-1', help="L1 Lasso regularizer param")
+parser.add_option("--L1", '--lassoReg', action="store", dest="L1", default='-1', help="L1 Lasso regularizer param")
+parser.add_option("--L2", '--ridgeReg', action="store", dest="L2", default='-1', help="L1 Lasso regularizer param")
 parser.add_option("-T", '--hyperparamTuningSetSize', action="store", dest="hyperparamTuningSetSize", default='1000', help="Size of set on which to train hyperparams")
 parser.add_option("-H", '--tuningHoldoutPercent', action="store", dest="tuningHoldoutPercent", default='0.5', help="Sample rate for holdout of hyperparameter trainer")
 parser.add_option('-i', '--iterations', dest='iterations', default='50', help='How many iterations to do')
@@ -83,6 +84,7 @@ logging.debug("loaded %s records into memory" % idx)
 logging.debug("time to load memory: %s " % (dataLoadTime - startTime))
 
 L1 = float(options.L1)
+L2 = float(options.L2)
 if (L1 >= 0):
   logging.debug("Using given L1 regularizer: " + str(L1))
 else:
@@ -102,11 +104,10 @@ else:
     else:
       trainingSet.append(tuningData)
       trainingLabels.append(label)
+  (L1, L2) = LR.findOptimalRegulizers(trainingSet, trainingLabels, holdoutSet, holdoutLabels, 0.002, 500)
+  logging.debug("optimal regularizer: " + str(L1) + ", " + str(L2))
 
-  L1 = LR.findOptimalL1Regulizer(trainingSet, trainingLabels, holdoutSet, holdoutLabels, 0.001, 1000)
-  logging.debug("optimal regularizer: " + str(L1))
-
-params = LR.batchCompute(data, labels, L1, 0.001, iterations)	
+params = LR.batchCompute(data, labels, L1, L2, 0.001, iterations)	
 
 logging.debug("Printing final weights: ")
 for feature in params:
