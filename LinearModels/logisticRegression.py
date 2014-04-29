@@ -20,10 +20,20 @@ import numpy.random as R
 #  if they are not in the map
 # convergence: a small number to detect convergence
 def batchCompute(dataPoints, labels, L1, L2, convergence, maxIters, allowLogging = True):
+  # Some pre-processing
+  scores = [0.0] * len(dataPoints)
+  featuresToDataPointIxs = {}
+  for i in range(0, len(dataPoints)):
+    dataPoint = dataPoints[i]
+    for feature in dataPoint:
+      if feature not in featuresToDataPointIxs: featuresToDataPointIxs[feature] = []
+      current = featuresToDataPointIxs.get(feature, [])
+      current.append(i)
+
   params = {}
   for i in range(0, maxIters):
-    (params, maxDist, maxDistF) = batchStep(dataPoints, labels, L1, L2, params, allowLogging)
-    if (allowLogging): logging.debug("Iteration " + str(i) + ", Dist: " + str(maxDist) + " on " + maxDistF)
+    (maxDist, maxDistF, loss) = batchStep(dataPoints, labels, L1, L2, params, scores, featuresToDataPointIxs, allowLogging)
+    if (allowLogging): logging.debug("Iteration " + str(i) + ", Loss: " + str(loss) + ", Dist: " + str(maxDist) + " on " + maxDistF + " now " + str(params.get(maxDistF, 0)) + ", Features: " + str(len(scores)))
     if (maxDist < convergence):
       if (allowLogging): logging.debug("Converge criteria met.")
       return params
@@ -40,71 +50,82 @@ def batchCompute(dataPoints, labels, L1, L2, convergence, maxIters, allowLogging
 #
 # Returns: (newParams, distance, avgLoss)
 # distance: maximum distance between new and old params
-def batchStep(dataPoints, labels, L1, L2, params, allowLogging = True):
-  featureDerivs = {}
-  feature2ndDerivs = {}
-  totalDatapointLoss = 0.0
-  numDatapoints = 0
-
-  for dataPoint, label in zip(dataPoints, labels):
-    currentEnergy = energy(dataPoint, params)
-    expEnergy = math.exp(currentEnergy)
-    for feature in dataPoint:
-      count = dataPoint[feature]
-      
-      d1 = derivativeForFeature(label, count, expEnergy)
-      featureDerivs[feature] = featureDerivs.get(feature, 0) + d1
-      
-      d2 = secondDerivativeForFeature(count, expEnergy)
-      feature2ndDerivs[feature] = feature2ndDerivs.get(feature, 0) + d2
-    totalDatapointLoss += math.log(expEnergy + 1)
-    if (label): totalDatapointLoss -= currentEnergy
-    numDatapoints += 1
+def batchStep(dataPoints, labels, L1, L2, params, scores, featuresToDataPointIxs, allowLogging = True):
+  numDatapoints = len(dataPoints)
+  totalLoss = 0.0
   
-  totalLoss = totalDatapointLoss / numDatapoints
-  if (allowLogging): logging.debug("Current Loss: " + str(totalLoss))
+  maxDistance = 0.0
+  featureWithMaxDistance = ''
   
-  featuresToLeaveAtZero = set()
-  
-  maxDistance = 0
-  featureWithMaxDistance = ""
-  newParams = {}
-  currentRLoss = 0
-  for feature in featureDerivs:
+  for feature in featuresToDataPointIxs:
+    featureLoss = 0.0
+    featureDeriv = 0.0
+    featureDeriv2 = 0.0
+    totalFeatureLoss = 0.0
+    currentFeatureScore = params.get(feature, 0.)
+    
+    for dataPointIx in featuresToDataPointIxs[feature]:
+      count = dataPoints[dataPointIx][feature]
+      label = labels[dataPointIx]
+      currentEnergy = scores[dataPointIx]
+      expEnergy = math.exp(currentEnergy)
+      featureLoss += lossForFeature(label, count, expEnergy)
+      featureDeriv += derivativeForFeature(label, count, expEnergy)
+      featureDeriv2 += secondDerivativeForFeature(count, expEnergy)
+    
+    featureLoss /= numDatapoints
+    featureDeriv /= numDatapoints
+    featureDeriv2 /= numDatapoints
+        
+    # Add L2 regularization
     currentValue = params.get(feature, 0)
-    deriv = (featureDerivs[feature] / numDatapoints) + 2*L2*currentValue
-    currentRLoss += L1*abs(currentValue) + L2*(currentValue**2)
-    deriv2 = (feature2ndDerivs.get(feature, 0) / numDatapoints) + 2*L2
+    featureLoss += currentValue * (L2 ** 2)
+    featureDeriv += 2*L2*currentValue
+    featureDeriv2 += 2*L2
     
-    oldMaxDistance = maxDistance
+    # Add L1 regularization (tricky!)
+    if (currentValue > 0 or (currentValue == 0 and featureDeriv < -L1)):
+      featureLoss += L1*currentValue
+      featureDeriv += L1
+    else:
+      if (currentValue < 0 or (currentValue == 0 and featureDeriv > L1)):
+        featureLoss -= L1*currentValue
+        featureDeriv -= L1
+      else: # Snap-to-zero
+        featureDeriv = 0
     
-    if (currentValue > 0):
-      diff = (deriv + L1) / deriv2
-      maxDistance = max(abs(diff), maxDistance)
-      newValue = currentValue - diff
-      if (sameSign(newValue, currentValue)): newParams[feature] = newValue
-    if (currentValue < 0):
-      diff = (deriv - L1) / deriv2
-      maxDistance = max(abs(diff), maxDistance)
-      newValue = currentValue - diff
-      if (sameSign(newValue, currentValue)): newParams[feature] = newValue
-    if (currentValue == 0):
-      if (deriv > L1):
-        diff = (deriv - L1) / deriv2
-        maxDistance = max(abs(diff), maxDistance)
-        newParams[feature] = currentValue - diff
-      if (deriv < -L1):
-        diff = (deriv + L1) / deriv2
-        maxDistance = max(abs(diff), maxDistance)
-        newParams[feature] = currentValue - diff
-    if (maxDistance > oldMaxDistance): featureWithMaxDistance = feature
-  
-  if (allowLogging):
-    logging.debug("Current R Loss: " + str(currentRLoss) + ", Total = " + str(totalLoss + currentRLoss))
-
-  return (newParams, maxDistance, featureWithMaxDistance)
+    
+    # Calculate new value
+    diff = float(featureDeriv) / featureDeriv2
+    newValue = currentValue - diff
+    if ((currentValue != 0) and (not sameSign(newValue, currentValue))): 
+      newValue = 0
+    diff = newValue - currentValue
+    
+    #Update Feature Weight
+    if (newValue != 0): params[feature] = newValue
+    else:
+      if (feature in params): del params[feature]
+    
+    # update maxDistance
+    if (abs(diff) > maxDistance):
+      maxDistance = abs(diff)
+      featureWithMaxDistance = feature
+      
+    # Update Scores Vector
+    for dataPointIx in featuresToDataPointIxs[feature]:
+      dataPoint = dataPoints[dataPointIx]
+      count = dataPoint[feature]
+      scores[dataPointIx] += count * diff
+    
+    totalLoss += featureLoss
+    
+  return (maxDistance, featureWithMaxDistance, totalLoss)
 
 def sameSign(a, b): return (a > 0) == (b > 0)
+
+def lossForFeature(label, count, expEnergy):
+  return -1 * label * math.log(expEnergy) + math.log(expEnergy + 1)
 
 def derivativeForFeature(label, count, expEnergy):
   term1 = -1 * labelToInt(label) * count
