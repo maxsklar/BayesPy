@@ -33,7 +33,7 @@ def batchCompute(dataPoints, labels, L1, L2, convergence, maxIters, allowLogging
   params = {}
   for i in range(0, maxIters):
     (maxDist, maxDistF, loss) = batchStep(dataPoints, labels, L1, L2, params, scores, featuresToDataPointIxs, allowLogging)
-    if (allowLogging): logging.debug("Iteration " + str(i) + ", Loss: " + str(loss) + ", Dist: " + str(maxDist) + " on " + maxDistF + " now " + str(params.get(maxDistF, 0)) + ", Features: " + str(len(scores)))
+    if (allowLogging): logging.debug("Iteration " + str(i) + ", Loss: " + str(loss) + ", Dist: " + str(maxDist) + " on " + maxDistF + " now " + str(params.get(maxDistF, 0)) + ", Features: " + str(len(params)))
     if (maxDist < convergence):
       if (allowLogging): logging.debug("Converge criteria met.")
       return params
