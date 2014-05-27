@@ -61,8 +61,6 @@ def batchStep(dataPoints, labels, L1, L2, params, scores, featuresToDataPointIxs
     featureLoss = 0.0
     featureDeriv = 0.0
     featureDeriv2 = 0.0
-    totalFeatureLoss = 0.0
-    currentFeatureScore = params.get(feature, 0.)
     
     for dataPointIx in featuresToDataPointIxs[feature]:
       count = dataPoints[dataPointIx][feature]
@@ -79,9 +77,9 @@ def batchStep(dataPoints, labels, L1, L2, params, scores, featuresToDataPointIxs
         
     # Add L2 regularization
     currentValue = params.get(feature, 0)
-    featureLoss += currentValue * (L2 ** 2)
-    featureDeriv += 2*L2*currentValue
-    featureDeriv2 += 2*L2
+    featureLoss += 0.5*currentValue * (L2 ** 2)
+    featureDeriv += L2*currentValue
+    featureDeriv2 += L2
     
     # Add L1 regularization (tricky!)
     if (currentValue > 0 or (currentValue == 0 and featureDeriv < -L1)):
