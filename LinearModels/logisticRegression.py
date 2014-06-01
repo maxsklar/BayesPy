@@ -22,13 +22,7 @@ import numpy.random as R
 def batchCompute(dataPoints, labels, L1, L2, convergence, maxIters, allowLogging = True):
   # Some pre-processing
   scores = [0.0] * len(dataPoints)
-  featuresToDataPointIxs = {}
-  for i in range(0, len(dataPoints)):
-    dataPoint = dataPoints[i]
-    for feature in dataPoint:
-      if feature not in featuresToDataPointIxs: featuresToDataPointIxs[feature] = []
-      current = featuresToDataPointIxs.get(feature, [])
-      current.append(i)
+  featuresToDataPointIxs = createFeaturesToDatapointIxMap(dataPoints)
 
   params = {}
   for i in range(0, maxIters):
@@ -40,6 +34,16 @@ def batchCompute(dataPoints, labels, L1, L2, convergence, maxIters, allowLogging
 
   if (allowLogging): logging.debug("Convergence did not occur in " + str(maxIters) + " iterations")
   return params
+
+def createFeaturesToDatapointIxMap(dataPoints):
+  featuresToDataPointIxs = {}
+  for i in range(0, len(dataPoints)):
+    dataPoint = dataPoints[i]
+    for feature in dataPoint:
+      if feature not in featuresToDataPointIxs: featuresToDataPointIxs[feature] = []
+      current = featuresToDataPointIxs.get(feature, [])
+      current.append(i)
+  return featuresToDataPointIxs
 
 # dataPoints: a list of data points. Each data point is a map from a feature name (a string) to a number
 # if a feature doesn't exist in the map, it is assumed to be zero
