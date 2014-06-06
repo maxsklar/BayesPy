@@ -25,12 +25,13 @@ def batchCompute(dataPoints, K, labels, L1, L2, convergence, maxIters, allowLogg
   # Some pre-processing
   scores = []
   for i in range(0, len(dataPoints)): scores.append([0.0] * K)
+  sortedFeatures = sorted(featuresToDataPointIxs, key=(lambda x: -len(featuresToDataPointIxs.get(x))))
   
   featuresToDataPointIxs = LRUtil.createFeaturesToDatapointIxMap(dataPoints)
 
   params = {}
   for i in range(0, maxIters):
-    (maxDist, maxDistF, loss) = batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPointIxs, allowLogging)
+    (maxDist, maxDistF, loss) = batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPointIxs, sortedFeatures, allowLogging)
     if (allowLogging): logging.debug("Iteration " + str(i) + ", Loss: " + str(loss) + ", Dist: " + str(maxDist) + " on " + maxDistF + " now " + str(params.get(maxDistF, 0)) + ", Features: " + str(len(params)))
     if (maxDist < convergence):
       if (allowLogging): logging.debug("Converge criteria met.")
@@ -48,47 +49,53 @@ def batchCompute(dataPoints, K, labels, L1, L2, convergence, maxIters, allowLogg
 #
 # Returns: (newParams, distance, avgLoss)
 # distance: maximum distance between new and old params
-def batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPointIxs, allowLogging = True):
+def batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPointIxs, sortedFeatures, allowLogging = True):
   numDatapoints = len(dataPoints)
   totalLoss = 0.0
   
   maxDistance = 0.0
   featureWithMaxDistance = ''
   
-  for feature in featuresToDataPointIxs:
-    featureLoss = 0.0
+  for feature in sortedFeatures:
     featureDeriv = [0.0]*K
+    
+    # This really should be a 2D hession, but for now use the diagonal hessian
     featureDeriv2 = [0.0]*K
     
     for dataPointIx in featuresToDataPointIxs[feature]:
       count = dataPoints[dataPointIx][feature]
       label = labels[dataPointIx]
-      currentEnergy = scores[dataPointIx]
-      expEnergy = math.exp(currentEnergy)
-      featureLoss += lossForFeature(label, count, expEnergy)
-      featureDeriv += derivativeForFeature(label, count, expEnergy)
-      featureDeriv2 += secondDerivativeForFeature(count, expEnergy)
+      currentEnergies = scores[dataPointIx]
+      currentExpEnergies = map(math.exp, currentEnergies)
+      
+      prob = currentExpEnergies[label] / sum(currentExpEnergies)
+      
+      for i in range(0, K):
+        probIx = (currentExpEnergies[i] / sum(currentExpEnergies))
+        featureDeriv[i] += probIx
+        if (i == label): featureDeriv[i] -= 1
+        featureDeriv2[i] += probIx * (1 - probIx)
     
-    featureLoss /= numDatapoints
-    featureDeriv /= numDatapoints
-    featureDeriv2 /= numDatapoints
+    for i in range(0, K):
+      featureDeriv[i] /= numDatapoints
+      featureDeriv2[i] /= numDatapoints
         
     # Add L2 regularization
-    currentValue = params.get(feature, 0)
-    featureLoss += 0.5*currentValue * (L2 ** 2)
-    featureDeriv += L2*currentValue
-    featureDeriv2 += L2
+    currentValues = params.get(feature, 0)
+    for i in range(0, K):
+      featureDeriv[i] += L2*currentValues[i]
+      featureDeriv2[i] += L2
+      
+    ################# WORKing AREA #########
     
     # Add L1 regularization (tricky!)
-    if (currentValue > 0 or (currentValue == 0 and featureDeriv < -L1)):
-      featureLoss += L1*currentValue
-      featureDeriv += L1
-    else:
-      if (currentValue < 0 or (currentValue == 0 and featureDeriv > L1)):
-        featureLoss -= L1*currentValue
+    for i in range(0, K):
+      if (currentValues[i] > 0 or (currentValues[i] == 0 and featureDeriv[i] < -L1)):
+        featureDeriv += L1
+      elif: (currentValues[i] < 0 or (currentValues[i] == 0 and featureDeriv[i] > L1)):
         featureDeriv -= L1
       else: # Snap-to-zero
-        featureDeriv = 0
+        featureDeriv[i] = 0
     
     
     # Calculate new value
