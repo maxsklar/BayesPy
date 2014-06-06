@@ -79,8 +79,8 @@ for row in reader:
   if (idx % 1000000) == 0: logging.debug("Loading Data: %s rows done" % idx)
 
 dataLoadTime = time.time()
-logging.debug("loaded %s records into memory" % idx)
 logging.debug("k=" + str(K))
+logging.debug("loaded %s records into memory" % idx)
 logging.debug("time to load memory: %s " % (dataLoadTime - startTime))
 
 L1 = float(options.L1)
@@ -90,7 +90,7 @@ params = MLR.batchCompute(data, K, labels, L1, L2, 0.001, iterations)
 
 logging.debug("Printing final weights: ")
 for feature in params:
-  weight = params[feature]
-  print str(feature) + "\t" + str(weight)
+  weights = params[feature]
+  print str(feature) + "\t" + "\t".join(map(str, weights))
 
 totalTime = time.time() - dataLoadTime
