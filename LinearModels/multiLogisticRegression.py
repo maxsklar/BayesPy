@@ -25,16 +25,15 @@ def batchCompute(dataPoints, K, labels, L1, L2, convergence, maxIters, allowLogg
   # Some pre-processing
   scores = []
   for i in range(0, len(dataPoints)): scores.append([0.0] * K)
+  featuresToDataPointIxs = LRUtil.createFeaturesToDatapointIxMap(dataPoints)
   sortedFeatures = sorted(featuresToDataPointIxs, key=(lambda x: -len(featuresToDataPointIxs.get(x))))
   
-  featuresToDataPointIxs = LRUtil.createFeaturesToDatapointIxMap(dataPoints)
-
   params = {}
   for i in range(0, maxIters):
     (maxDist, maxDistF, maxDistD) = batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPointIxs, sortedFeatures, allowLogging)
     if (allowLogging):
       dataLoss = computeLossForDataset(dataPoints, labels, params, K)
-      logging.debug("Iteration " + str(i) + ", Loss: " + dataLoss + ", Dist: " + str(maxDist) + " on " + maxDistF + ":" + str(maxDistD) + " now " + str(params.get(maxDistF, [0.0, 0.0, 0.0])) + ", Features: " + str(len(params)))
+      logging.debug("Iteration " + str(i) + ", Loss: " + str(dataLoss) + ", Dist: " + str(maxDist) + " on " + maxDistF + ":" + str(maxDistD) + " now " + str(params.get(maxDistF, [0.0, 0.0, 0.0])) + ", Features: " + str(len(params)))
     if (maxDist < convergence):
       if (allowLogging): logging.debug("Converge criteria met.")
       return params
@@ -84,7 +83,7 @@ def batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPoint
       featureDeriv2[i] /= numDatapoints
         
     # Add L2 regularization
-    currentValues = params.get(feature, 0)
+    currentValues = params.get(feature, [0.0]*K)
     for i in range(0, K):
       featureDeriv[i] += L2*currentValues[i]
       featureDeriv2[i] += L2
@@ -92,9 +91,9 @@ def batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPoint
     # Add L1 regularization (tricky!)
     for i in range(0, K):
       if (currentValues[i] > 0 or (currentValues[i] == 0 and featureDeriv[i] < -L1)):
-        featureDeriv += L1
-      elif: (currentValues[i] < 0 or (currentValues[i] == 0 and featureDeriv[i] > L1)):
-        featureDeriv -= L1
+        featureDeriv[i] += L1
+      elif (currentValues[i] < 0 or (currentValues[i] == 0 and featureDeriv[i] > L1)):
+        featureDeriv[i] -= L1
       else: # Snap-to-zero
         featureDeriv[i] = 0
     
@@ -109,12 +108,12 @@ def batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPoint
         if (snap * diffs[i] > currentValues[i]):
           snap = currentValues[i] / diffs[i]
           zeroOut = i
-      elif: (currentValues[i] < 0):
+      elif (currentValues[i] < 0):
         if (snap*diffs[i] < currentValues[i]):
           snap = currentValues[i] / diffs[i]
           zeroOut = i
     
-    newValues = [0.0] * i
+    newValues = [0.0] * K
     for i in range(0, K):
       if (zeroOut != i):
         newValues[i] = currentValues[i] - diffs[i]
@@ -129,9 +128,6 @@ def batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPoint
     #Update Feature Weight
     if (all(v == 0.0 for v in newValues)): del params[feature]
     else: params[feature] = newValues
-    if (newValue != 0): params[feature] = newValue
-    else:
-      if (feature in params): del params[feature]
     
     # Update Scores Vector
     for dataPointIx in featuresToDataPointIxs[feature]:
@@ -142,7 +138,7 @@ def batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPoint
           
   return (maxDistance, featureWithMaxDistance, dimWithMaxDistance)
 
-def energy(dataPoint, params):
+def energy(dataPoint, params, K):
   total = [0.0] * K
   for feature in dataPoint:
     param = params.get(feature, [0.0] * K)
@@ -181,21 +177,21 @@ def findOptimalRegulizers(trainingSet, trainingLabels, testSet, testLabels, conv
       numRejects += 1
   return (math.exp(logL1), math.exp(logL2))
 
-def computeLossForDataset(dataPoints, labels, params):
+def computeLossForDataset(dataPoints, labels, params, K):
   totalLoss = 0
   totalDataPoints = 0
   for dataPoint, label in zip(dataPoints, labels):
-    totalLoss += computeLossForDatapoint(dataPoint, label, params)
+    totalLoss += computeLossForDatapoint(dataPoint, label, params, K)
     totalDataPoints += 1
   return totalLoss / totalDataPoints
 
-def computeLossForDatapoint(dataPoint, label, params):
-  E = energy(dataPoint, params)
+def computeLossForDatapoint(dataPoint, label, params, K):
+  E = energy(dataPoint, params, K)
   expEnergies = map(math.exp, E)
   return math.log(sum(expEnergies)) - E[label]
   
-def computeTrainingLossForDataset(dataPoints, labels, L1, params):
-  datasetLoss = computeLossForDataset(dataPoints, labels, params)
+def computeTrainingLossForDataset(dataPoints, labels, L1, params, K):
+  datasetLoss = computeLossForDataset(dataPoints, labels, params, K)
   l1Loss = 0
   for feature in params: l1Loss += abs(params[feature])
   l1Loss *= L1
