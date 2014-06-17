@@ -13,6 +13,43 @@ import scipy.special as mathExtra
 import numpy.random as R
 import logisticRegression as LRUtil
 
+class DataPointAccumulator:
+  size = 0
+  
+  def __init__(self, K):
+    self.K = K
+    self.dataPoints = []
+    self.labels = []
+    self.labelCounts = [0]*K
+    self.featureToDataPointIxs = {}
+    
+    # Finalized vars
+    self.sortedFeatures = []
+    
+  def appendRow(self, dataPoint, label):
+    self.dataPoints.append(dataPoint)
+    self.labels.append(label)
+    
+    for feature in dataPoint:
+      if (feature not in self.featureToDataPointIxs):
+        self.featureToDataPointIxs[feature] = []
+      self.featureToDataPointIxs[feature].append(self.size)
+    
+    self.size += 1
+    self.labelCounts[label] += 1
+    
+  def finalize(self, maxFeatures):
+    self.sortedFeatures = sorted(self.featureToDataPointIxs, key=(lambda x: -len(self.featureToDataPointIxs.get(x))))
+    self.sortedFeatures = self.sortedFeatures[:maxFeatures]
+    
+    self.__CONST__ = map(lambda x: math.log(float(x) / size), self.labelCounts)
+    logging.debug("CONST: " + str(self.__CONST__))
+    
+    newMap = {}
+    for feature in self.sortedFeatures:
+      newMap[feature] = self.featureToDataPointIxs[feature]
+    self.featureToDataPointIxs = newMap
+
 # dataPoints: a list of data points. Each data point is a map from a feature name (a string) to a number
 # if a feature doesn't exist in the map, it is assumed to be zero
 # K: the number of different categories, or possible labels
@@ -21,19 +58,14 @@ import logisticRegression as LRUtil
 # params: the parameters for each feature (a map). The parameters are doubles, and assumed to be zero 
 #  if they are not in the map
 # convergence: a small number to detect convergence
-def batchCompute(dataPoints, K, labels, L1, L2, convergence, maxIters, allowLogging = True):
-  # Some pre-processing
+def batchCompute(dataPointAccumulator, L1, L2, convergence, maxIters, allowLogging = True):
   scores = []
-  for i in range(0, len(dataPoints)): scores.append([0.0] * K)
-  featuresToDataPointIxs = LRUtil.createFeaturesToDatapointIxMap(dataPoints)
-  sortedFeatures = sorted(featuresToDataPointIxs, key=(lambda x: -len(featuresToDataPointIxs.get(x))))
-  
+  for i in range(0, dataPointAccumulator.size): scores.append(dataPointAccumulator.__CONST__)
   params = {}
   for i in range(0, maxIters):
-    (maxDist, maxDistF, maxDistD) = batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPointIxs, sortedFeatures, allowLogging)
+    (maxDist, maxDistF, maxDistD) = batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging)
     if (allowLogging):
-      dataLoss = computeLossForDataset(dataPoints, labels, params, K)
-      logging.debug("Iteration " + str(i) + ", Loss: " + str(dataLoss) + ", Dist: " + str(maxDist) + " on " + maxDistF + ":" + str(maxDistD) + " now " + str(params.get(maxDistF, [0.0, 0.0, 0.0])) + ", Features: " + str(len(params)))
+      logging.debug("Iteration " + str(i) + ", Dist: " + str(maxDist) + " on " + maxDistF + ":" + str(maxDistD) + " now " + str(params.get(maxDistF, [0.0, 0.0, 0.0])) + ", Features: " + str(len(params)))
     if (maxDist < convergence):
       if (allowLogging): logging.debug("Converge criteria met.")
       return params
@@ -50,43 +82,48 @@ def batchCompute(dataPoints, K, labels, L1, L2, convergence, maxIters, allowLogg
 #
 # Returns: (newParams, distance, avgLoss)
 # distance: maximum distance between new and old params
-def batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPointIxs, sortedFeatures, allowLogging = True):
-  numDatapoints = len(dataPoints)
+def batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging = True):
+  numDatapoints = dataPointAccumulator.size
   totalLoss = 0.0
   
   maxDistance = 0.0
   featureWithMaxDistance = ''
   dimWithMaxDistance = 0
+  K = dataPointAccumulator.K
   
-  for feature in sortedFeatures:
+  for feature in dataPointAccumulator.sortedFeatures:
+    #print "**", feature
     featureDeriv = [0.0]*K
     
     # This really should be a 2D hession, but for now use the diagonal hessian
-    featureDeriv2 = [0.0]*K
+    diagHessian = [0.0]*K
     
-    for dataPointIx in featuresToDataPointIxs[feature]:
-      count = dataPoints[dataPointIx][feature]
-      label = labels[dataPointIx]
+    dataPointIxs = dataPointAccumulator.featureToDataPointIxs[feature]
+    for dataPointIx in dataPointIxs:
+      count = dataPointAccumulator.dataPoints[dataPointIx][feature]
+      label = dataPointAccumulator.labels[dataPointIx]
       currentEnergies = scores[dataPointIx]
       currentExpEnergies = map(math.exp, currentEnergies)
+      currentExpEnergiesSum = sum(currentExpEnergies)
+      prob = currentExpEnergies[label] / currentExpEnergiesSum
       
-      prob = currentExpEnergies[label] / sum(currentExpEnergies)
-      
-      for i in range(0, K):
-        probIx = (currentExpEnergies[i] / sum(currentExpEnergies))
-        featureDeriv[i] += probIx
-        if (i == label): featureDeriv[i] -= 1
-        featureDeriv2[i] += probIx * (1 - probIx)
+      for k in range(0, K):
+        probIx = (currentExpEnergies[k] / currentExpEnergiesSum)
+        featureDeriv[k] += count * probIx
+        if (k == label): featureDeriv[k] -= count
+        
+        # Diagonal part of the hessian
+        diagHessian[k] += (count ** 2) * (currentExpEnergiesSum ** -1) * currentExpEnergies[k] + (count ** 2) * (currentExpEnergiesSum ** -2) * currentExpEnergies[k] * currentExpEnergies[k]
     
     for i in range(0, K):
       featureDeriv[i] /= numDatapoints
-      featureDeriv2[i] /= numDatapoints
+      diagHessian[i] /= numDatapoints
         
     # Add L2 regularization
     currentValues = params.get(feature, [0.0]*K)
     for i in range(0, K):
       featureDeriv[i] += L2*currentValues[i]
-      featureDeriv2[i] += L2
+      diagHessian[i] += L2
       
     # Add L1 regularization (tricky!)
     for i in range(0, K):
@@ -98,7 +135,8 @@ def batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPoint
         featureDeriv[i] = 0
     
     diffs = [0.0] * K
-    for i in range(0, K): diffs[i] = featureDeriv[i] / featureDeriv2[i]
+    for i in range(0, K):
+      diffs[i] += featureDeriv[i] / diagHessian[i]
     
     # Check if any diffs cause the values to cross 0. If they do, snap to zero!
     snap = 1.0
@@ -126,12 +164,13 @@ def batchStep(dataPoints, K, labels, L1, L2, params, scores, featuresToDataPoint
         dimWithMaxDistance = i
           
     #Update Feature Weight
-    if (all(v == 0.0 for v in newValues)): del params[feature]
+    if (all(v == 0.0 for v in newValues)): 
+      if feature in params: del params[feature]
     else: params[feature] = newValues
     
     # Update Scores Vector
-    for dataPointIx in featuresToDataPointIxs[feature]:
-      dataPoint = dataPoints[dataPointIx]
+    for dataPointIx in dataPointAccumulator.featureToDataPointIxs[feature]:
+      dataPoint = dataPointAccumulator.dataPoints[dataPointIx]
       count = dataPoint[feature]
       for i in range(0, K):
         scores[dataPointIx][i] += count * (newValues[i] - currentValues[i])
@@ -145,42 +184,13 @@ def energy(dataPoint, params, K):
     for i in range(0, K): total[i] += dataPoint[feature] * param[i]
   return total
 
-# Parameter Tuning
-# Needs logLevel to turn logging off for each run
-# return (L1, L2) regularizers
-def findOptimalRegulizers(trainingSet, trainingLabels, testSet, testLabels, conv, maxIter):
-  logL1 = 0
-  logL2 = 0
-  currentLoss = float("inf")
-  numRejects = 0
-  while numRejects < 10:
-    changeL1 = (R.normal() > 0)
-    newLogL1 = logL1
-    newLogL2 = logL2
-    if (changeL1): newLogL1 = logL1 + R.normal()
-    else: newLogL2 = logL2 + R.normal()
-    
-    L1 = math.exp(newLogL1)
-    L2 = math.exp(newLogL2)
-    
-    params = batchCompute(trainingSet, trainingLabels, L1, L2, conv, maxIter, False)
-    avgLoss = computeLossForDataset(testSet, testLabels, params)
-    
-    accept = avgLoss < currentLoss
-    logging.debug("New " + ("L1" if changeL1 else "L2") + ": L1 = " + str(L1) + ", L2 = " + str(L2) + ", loss: " + str(avgLoss) + ", " + ("ACCEPT" if accept else "REJECT"))
-    if (accept):
-      currentLoss = avgLoss
-      logL1 = newLogL1
-      logL2 = newLogL2
-      numRejects = 0
-    else:
-      numRejects += 1
-  return (math.exp(logL1), math.exp(logL2))
-
-def computeLossForDataset(dataPoints, labels, params, K):
+def computeLossForDataset(dataPointAccumulator, params):
+  K = dataPointAccumulator.K
   totalLoss = 0
   totalDataPoints = 0
-  for dataPoint, label in zip(dataPoints, labels):
+  for i in range(0, dataPointAccumulator.size):
+    dataPoint = dataPointAccumulator.dataPoints[i]
+    label = dataPointAccumulator.labels[i]
     totalLoss += computeLossForDatapoint(dataPoint, label, params, K)
     totalDataPoints += 1
   return totalLoss / totalDataPoints
@@ -189,10 +199,3 @@ def computeLossForDatapoint(dataPoint, label, params, K):
   E = energy(dataPoint, params, K)
   expEnergies = map(math.exp, E)
   return math.log(sum(expEnergies)) - E[label]
-  
-def computeTrainingLossForDataset(dataPoints, labels, L1, params, K):
-  datasetLoss = computeLossForDataset(dataPoints, labels, params, K)
-  l1Loss = 0
-  for feature in params: l1Loss += abs(params[feature])
-  l1Loss *= L1
-  return datasetLoss + l1Loss

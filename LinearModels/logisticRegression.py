@@ -24,7 +24,12 @@ def batchCompute(dataPoints, labels, L1, L2, convergence, maxIters, allowLogging
   scores = [0.0] * len(dataPoints)
   featuresToDataPointIxs = createFeaturesToDatapointIxMap(dataPoints)
   sortedFeatures = sorted(featuresToDataPointIxs, key=(lambda x: -len(featuresToDataPointIxs.get(x))))
-
+  
+  i = 0
+  for feature in sortedFeatures:
+    numAppearances = len(featuresToDataPointIxs[feature])
+    i += 1
+  
   params = {}
   for i in range(0, maxIters):
     (maxDist, maxDistF, dataLoss, paramLoss) = batchStep(dataPoints, labels, L1, L2, params, scores, featuresToDataPointIxs, sortedFeatures, allowLogging)
@@ -45,6 +50,15 @@ def createFeaturesToDatapointIxMap(dataPoints):
       current = featuresToDataPointIxs.get(feature, [])
       current.append(i)
   return featuresToDataPointIxs
+
+def createFeaturesToNumDatapointsMap(dataPoints):
+  featuresToNumDatapointsMap = {}
+  for i in range(0, len(dataPoints)):
+    dataPoint = dataPoints[i]
+    for feature in dataPoint:
+      if feature not in featuresToNumDatapointsMap: featuresToNumDatapointsMap[feature] = 0
+      featuresToDataPointIxs[feature] += 1
+  return featuresToNumDatapointsMap
 
 # dataPoints: a list of data points. Each data point is a map from a feature name (a string) to a number
 # if a feature doesn't exist in the map, it is assumed to be zero
