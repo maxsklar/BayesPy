@@ -11,44 +11,62 @@ import logging
 import random
 import scipy.special as mathExtra
 import numpy.random as R
+import numpy as np
 import logisticRegression as LRUtil
+import scipy.sparse as sparse
 
-class DataPointAccumulator:
-  size = 0
-  
+class FeatureListComputer:
   def __init__(self, K):
     self.K = K
-    self.dataPoints = []
+    self.featureCounts = {}
+  
+  def appendRow(self, dataPoint):
+    for feature in dataPoint: 
+      if (feature not in self.featureCounts): self.featureCounts[feature] = 0
+      self.featureCounts[feature] += 1
+  
+  def finalizeAndPrint(self, maxFeatures):
+    sortedFeatures = sorted(self.featureCounts, key=(lambda x: -self.featureCounts[x]))
+    for f in sortedFeatures[:maxFeatures]: print(f)
+
+class DataPointAccumulator:
+  # K: num labels
+  # N: num data points
+  def __init__(self, K, N):
+    self.K = K
+    self.N = N
+    
+    self.dataPointIx = 0
+
+    self.featureReverseLookup = {}
+    self.featureForwardLookup = []
+    self.numFeatures = 0
     self.labels = []
-    self.labelCounts = [0]*K
-    self.featureToDataPointIxs = {}
-    
-    # Finalized vars
-    self.sortedFeatures = []
-    
+    self.labelCounts = [0] * K
+  
+  def addFeature(self, feature):
+    self.featureReverseLookup[feature] = self.numFeatures
+    self.featureForwardLookup.append(feature)
+    self.numFeatures += 1
+  
+  def finalizeFeatures(self):
+    self.featureMatrix = []
+    for f in range(0, self.numFeatures): self.featureMatrix.append({})
+  
   def appendRow(self, dataPoint, label):
-    self.dataPoints.append(dataPoint)
     self.labels.append(label)
-    
-    for feature in dataPoint:
-      if (feature not in self.featureToDataPointIxs):
-        self.featureToDataPointIxs[feature] = []
-      self.featureToDataPointIxs[feature].append(self.size)
-    
-    self.size += 1
     self.labelCounts[label] += 1
+    for feature in dataPoint:
+      if (feature not in self.featureReverseLookup): continue
+      featureIx = self.featureReverseLookup[feature]
+      count = dataPoint[feature]
+      self.featureMatrix[featureIx][self.dataPointIx] = count
     
-  def finalize(self, maxFeatures):
-    self.sortedFeatures = sorted(self.featureToDataPointIxs, key=(lambda x: -len(self.featureToDataPointIxs.get(x))))
-    self.sortedFeatures = self.sortedFeatures[:maxFeatures]
+    self.dataPointIx += 1
     
-    self.__CONST__ = map(lambda x: math.log(float(x) / size), self.labelCounts)
+  def finalize(self):
+    self.__CONST__ = map(lambda x: math.log(float(x) / self.N), self.labelCounts)
     logging.debug("CONST: " + str(self.__CONST__))
-    
-    newMap = {}
-    for feature in self.sortedFeatures:
-      newMap[feature] = self.featureToDataPointIxs[feature]
-    self.featureToDataPointIxs = newMap
 
 # dataPoints: a list of data points. Each data point is a map from a feature name (a string) to a number
 # if a feature doesn't exist in the map, it is assumed to be zero
@@ -59,13 +77,18 @@ class DataPointAccumulator:
 #  if they are not in the map
 # convergence: a small number to detect convergence
 def batchCompute(dataPointAccumulator, L1, L2, convergence, maxIters, allowLogging = True):
-  scores = []
-  for i in range(0, dataPointAccumulator.size): scores.append(dataPointAccumulator.__CONST__)
+  scores = np.zeros((dataPointAccumulator.N, dataPointAccumulator.K))
+  for i in range(0, dataPointAccumulator.N):
+    for k in range(0, dataPointAccumulator.K):
+      scores[i][k] = dataPointAccumulator.__CONST__[k]
+      
+  logging.debug("Built the score matrix")
   params = {}
   for i in range(0, maxIters):
     (maxDist, maxDistF, maxDistD) = batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging)
     if (allowLogging):
-      logging.debug("Iteration " + str(i) + ", Dist: " + str(maxDist) + " on " + maxDistF + ":" + str(maxDistD) + " now " + str(params.get(maxDistF, [0.0, 0.0, 0.0])) + ", Features: " + str(len(params)))
+      maxDistIx = dataPointAccumulator.featureReverseLookup[maxDistF]
+      logging.debug("Iteration " + str(i) + ", Dist: " + str(maxDist) + " on " + maxDistF + ":" + str(maxDistD) + " now " + str(params.get(maxDistIx, [0.0, 0.0, 0.0])) + ", Features: " + str(len(params)))
     if (maxDist < convergence):
       if (allowLogging): logging.debug("Converge criteria met.")
       return params
@@ -83,7 +106,7 @@ def batchCompute(dataPointAccumulator, L1, L2, convergence, maxIters, allowLoggi
 # Returns: (newParams, distance, avgLoss)
 # distance: maximum distance between new and old params
 def batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging = True):
-  numDatapoints = dataPointAccumulator.size
+  numDatapoints = dataPointAccumulator.N
   totalLoss = 0.0
   
   maxDistance = 0.0
@@ -91,16 +114,19 @@ def batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging = True)
   dimWithMaxDistance = 0
   K = dataPointAccumulator.K
   
-  for feature in dataPointAccumulator.sortedFeatures:
-    #print "**", feature
-    featureDeriv = [0.0]*K
+  featureIx = 0
+  
+  featureDeriv = np.zeros(3)
+  # This really should be a 2D hession, but for now use the diagonal hessian
+  diagHessian = np.zeros(3)
+  
+  for featureIx in range(0, dataPointAccumulator.numFeatures):
+    for k in range(0, K):
+      featureDeriv[k] = 0.0
+      diagHessian[k] = 0.0
     
-    # This really should be a 2D hession, but for now use the diagonal hessian
-    diagHessian = [0.0]*K
-    
-    dataPointIxs = dataPointAccumulator.featureToDataPointIxs[feature]
-    for dataPointIx in dataPointIxs:
-      count = dataPointAccumulator.dataPoints[dataPointIx][feature]
+    for dataPointIx in dataPointAccumulator.featureMatrix[featureIx]:
+      count = dataPointAccumulator.featureMatrix[featureIx][dataPointIx]
       label = dataPointAccumulator.labels[dataPointIx]
       currentEnergies = scores[dataPointIx]
       currentExpEnergies = map(math.exp, currentEnergies)
@@ -120,7 +146,7 @@ def batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging = True)
       diagHessian[i] /= numDatapoints
         
     # Add L2 regularization
-    currentValues = params.get(feature, [0.0]*K)
+    currentValues = params.get(featureIx, [0.0]*K)
     for i in range(0, K):
       featureDeriv[i] += L2*currentValues[i]
       diagHessian[i] += L2
@@ -160,20 +186,21 @@ def batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging = True)
       distance = abs(newValues[i] - currentValues[i])
       if (distance > maxDistance):
         maxDistance = distance
-        featureWithMaxDistance = feature
+        featureWithMaxDistance = dataPointAccumulator.featureForwardLookup[featureIx]
         dimWithMaxDistance = i
           
     #Update Feature Weight
     if (all(v == 0.0 for v in newValues)): 
-      if feature in params: del params[feature]
-    else: params[feature] = newValues
+      if featureIx in params: del params[featureIx]
+    else: params[featureIx] = newValues
     
     # Update Scores Vector
-    for dataPointIx in dataPointAccumulator.featureToDataPointIxs[feature]:
-      dataPoint = dataPointAccumulator.dataPoints[dataPointIx]
-      count = dataPoint[feature]
+    for dataPointIx in dataPointAccumulator.featureMatrix[featureIx]:
+      count = dataPointAccumulator.featureMatrix[featureIx][dataPointIx]
       for i in range(0, K):
         scores[dataPointIx][i] += count * (newValues[i] - currentValues[i])
+    
+    featureIx += 1
           
   return (maxDistance, featureWithMaxDistance, dimWithMaxDistance)
 
@@ -188,7 +215,7 @@ def computeLossForDataset(dataPointAccumulator, params):
   K = dataPointAccumulator.K
   totalLoss = 0
   totalDataPoints = 0
-  for i in range(0, dataPointAccumulator.size):
+  for i in range(0, dataPointAccumulator.N):
     dataPoint = dataPointAccumulator.dataPoints[i]
     label = dataPointAccumulator.labels[i]
     totalLoss += computeLossForDatapoint(dataPoint, label, params, K)
@@ -199,3 +226,19 @@ def computeLossForDatapoint(dataPoint, label, params, K):
   E = energy(dataPoint, params, K)
   expEnergies = map(math.exp, E)
   return math.log(sum(expEnergies)) - E[label]
+
+def lineToLabelAndFeatures(line):
+  row = line.replace("\n", "").split("\t")
+  label = int(row[0])
+  features = {}
+  
+  for i in range(1, len(row)):
+    featureStr = row[i]
+    featureCutPointA = featureStr.rfind(":")
+    featureCutPointB = featureCutPointA + 1
+    feature = featureStr[:featureCutPointA]
+    if (feature == "__CONST__"): continue
+    count = int(float(featureStr[featureCutPointB:]))
+    features[feature] = count
+  
+  return label, features
