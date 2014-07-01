@@ -28,6 +28,11 @@ class FeatureListComputer:
   def finalizeAndPrint(self, maxFeatures):
     sortedFeatures = sorted(self.featureCounts, key=(lambda x: -self.featureCounts[x]))
     for f in sortedFeatures[:maxFeatures]: print(f)
+  
+  def finalizeAndPrintToFile(self, maxFeatures, fileObj):
+    sortedFeatures = sorted(self.featureCounts, key=(lambda x: -self.featureCounts[x]))
+    for f in sortedFeatures[:maxFeatures]: fileObj.write(f + "\n")
+    fileObj.close()
 
 class DataPointAccumulator:
   # K: num labels
@@ -65,7 +70,7 @@ class DataPointAccumulator:
     self.dataPointIx += 1
     
   def finalize(self):
-    self.__CONST__ = map(lambda x: math.log(float(x) / self.N), self.labelCounts)
+    self.__CONST__ = map(lambda x: math.log((0.1 + float(x)) / (self.N + 0.3)), self.labelCounts)
     logging.debug("CONST: " + str(self.__CONST__))
 
 # dataPoints: a list of data points. Each data point is a map from a feature name (a string) to a number
@@ -129,17 +134,18 @@ def batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging = True)
       count = dataPointAccumulator.featureMatrix[featureIx][dataPointIx]
       label = dataPointAccumulator.labels[dataPointIx]
       currentEnergies = scores[dataPointIx]
-      currentExpEnergies = map(math.exp, currentEnergies)
+      currentEnergiesFixed = map(lambda x: x - max(currentEnergies), currentEnergies)
+      currentExpEnergies = map(math.exp, currentEnergiesFixed)
       currentExpEnergiesSum = sum(currentExpEnergies)
-      prob = currentExpEnergies[label] / currentExpEnergiesSum
+      probs = map(lambda x: x / currentExpEnergiesSum, currentExpEnergies)
+      prob = probs[label]
       
       for k in range(0, K):
-        probIx = (currentExpEnergies[k] / currentExpEnergiesSum)
-        featureDeriv[k] += count * probIx
+        featureDeriv[k] += count * probs[k]
         if (k == label): featureDeriv[k] -= count
         
         # Diagonal part of the hessian
-        diagHessian[k] += (count ** 2) * (currentExpEnergiesSum ** -1) * currentExpEnergies[k] + (count ** 2) * (currentExpEnergiesSum ** -2) * currentExpEnergies[k] * currentExpEnergies[k]
+        diagHessian[k] += (count ** 2) * probs[k] + (count ** 2) * (probs[k] * probs[k])
     
     for i in range(0, K):
       featureDeriv[i] /= numDatapoints

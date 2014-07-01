@@ -63,11 +63,12 @@ for line in open(options.model, 'r'):
   numFeatures += 1
 
 for k in range(0, K):
-  logging.debug("****** Superlatives for classification %s ******" % k)
-  logging.debug("Top 20")
+  print "****** Superlatives for classification %s ******" % k
+  print "Top 20"
   bests = sorted(featureProbs.items(), key=lambda x: -1 * featureProbs[x[0]][k])
   for i in range(0, 20):
-    logging.debug(str(i) + "\t" + str(bests[i]))
+    (feature, probDist) = bests[i]
+    print str(i) + "\t" + feature + "\t" + str(probDist)
 
 calcTime = time.time()
 logging.debug("time to calculate loss: %s " % (calcTime - startTime))
