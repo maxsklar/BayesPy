@@ -2,11 +2,6 @@
 #
 # THIS MODEL IS EXPERIMENTAL
 #
-# Finding the optimal dirichlet prior from counts
-# By: Max Sklar
-# @maxsklar
-# https://github.com/maxsklar
-
 # Copyright 2014 Max Sklar
 
 # A sample of a file to pipe into this python script is given by logisticRegressionTest.csv
@@ -32,7 +27,6 @@ startTime = time.time()
 parser = OptionParser()
 parser.add_option('-m', '--model', dest='model', help='File containing the logistic model')
 parser.add_option('-k', '--k', dest='k', help='File containing the logistic model')
-parser.add_option('-t', '--testSet', dest='testSet', help='File containing the test set')
 parser.add_option("-L", '--loglevel', action="store", dest="loglevel", default='DEBUG', help="don't print status messages to stdout")
 
 (options, args) = parser.parse_args()
@@ -49,59 +43,32 @@ logging.basicConfig(level=numeric_level)
 #####
 
 csv.field_size_limit(1000000000)
-modelReader = csv.reader(open(options.model, 'r'), delimiter='\t')
 logging.debug("Loading model")
 
 featureWeights = {}
+featureProbs = {}
 numFeatures = 0
 K = int(options.k)
-for row in modelReader:
+for line in open(options.model, 'r'):
+  row = line.split('\t')
   scores = [0.0]*K
   for k in range(0, K): 
     if (len(row) > k + 1):
       scores[k] = float(row[k + 1])
   featureWeights[row[0]] = scores
+  
+  expScores = map(math.exp, scores)
+  sumExpScores = sum(expScores)
+  featureProbs[row[0]] = map(lambda x: x / sumExpScores, expScores)
   numFeatures += 1
-  
-logging.debug("k=" + str(K))
-logging.debug("loaded %s records into memory" % numFeatures)
 
-logging.debug("Reading Test data")
-
-totalLoss = 0.0
-numDataPoints = 0
-for line in open(options.testSet, 'r'):
-  row = line.replace("\n", "").split("\t")
-  label = int(row[0])
-  features = {"__CONST__": 1}
-  for i in range(1, len(row)):
-    featureStr = row[i]
-    featureCutPointA = featureStr.rfind(":")
-    featureCutPointB = featureCutPointA + 1
-    feature = featureStr[:featureCutPointA]
-    count = int(float(featureStr[featureCutPointB:]))
-    features[feature] = count
-  
-  # Add up the features scores
-  scores = [0.0] * K
-  for feature in features:
-    count = features[feature]
-    weights = featureWeights.get(feature, [0.0] * K)
-    for k in range(0, K): scores[k] += (count * weights[k])
-  
-  labelWeight = scores[label]
-  
-  totalLoss += math.log(sum(map(math.exp, scores)))
-  totalLoss -= labelWeight 
-  numDataPoints += 1
-
-constWeights = featureWeights.get("__CONST__")
-print "CONST probabilities: " + str(map(math.exp, constWeights))
-constLosses = map(lambda x: - x * math.exp(x), constWeights)
-print "Baseline Loss: " + str(sum(constLosses))
-print "Total Loss: " + str(totalLoss) 
-print "Num datapoints: " + str(numDataPoints) 
-print "Average Loss: " + str(totalLoss / numDataPoints) 
+for k in range(0, K):
+  print "****** Superlatives for classification %s ******" % k
+  print "Top 20"
+  bests = sorted(featureProbs.items(), key=lambda x: -1 * featureProbs[x[0]][k])
+  for i in range(0, 20):
+    (feature, probDist) = bests[i]
+    print str(i) + "\t" + feature + "\t" + str(probDist)
 
 calcTime = time.time()
 logging.debug("time to calculate loss: %s " % (calcTime - startTime))

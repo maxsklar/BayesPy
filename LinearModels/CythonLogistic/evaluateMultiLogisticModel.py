@@ -95,10 +95,6 @@ for line in open(options.testSet, 'r'):
   totalLoss -= labelWeight 
   numDataPoints += 1
 
-constWeights = featureWeights.get("__CONST__")
-print "CONST probabilities: " + str(map(math.exp, constWeights))
-constLosses = map(lambda x: - x * math.exp(x), constWeights)
-print "Baseline Loss: " + str(sum(constLosses))
 print "Total Loss: " + str(totalLoss) 
 print "Num datapoints: " + str(numDataPoints) 
 print "Average Loss: " + str(totalLoss / numDataPoints) 
