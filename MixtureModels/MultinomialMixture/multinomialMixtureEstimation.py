@@ -97,11 +97,16 @@ def getComponentProbabilitiesForCounts(counts, model):
   logProbs = [0.] * model.C
   
   for c in range(0, model.C):
-    for k in range(0, model.K):
-      logProbs[c] += math.log(model.multinomials[c][k]) * counts[k]
-    logProbs[c] += math.log(model.mixture[c])
+    logProbs[c] = getLogProbabilityForComponent(counts, model, c)
   
   return logProbsToProbabilityDistribution(logProbs)
+
+def getLogProbabilityForComponent(counts, model, c):
+  logProb = 0.
+  for k in range(0, model.K):
+    logProb += math.log(model.multinomials[c][k]) * counts[k]
+  logProb += math.log(model.mixture[c])
+  return logProb
 
 # given a count vector C, and a multinomial M, the energy is
 def findMultinomialFromCountsAndWeights(counts, weights, hyperparams):
@@ -166,13 +171,57 @@ def initMixtureModel(data, hyperParams):
     for k in range(0, K): 
       numerator = float(data[c][k]) + hyperParams.componentDirich[k]
       multinomials[c][k] = numerator / denominator
+
   
   return MultinomialMixtureModel(C, K, multinomials, mixture)
 
 def computeDirichletMixture(data, hyperParams, iterations):
   model = initMixtureModel(data, hyperParams)
   for i in range(0, iterations):
-    logging.debug("Iter: " + str(i) + ", model = " + str(model.mixture) + " * " + str(model.multinomials))
-    model = updateMixtureModel(data, model, hyperParams)
-
+    newmodel = updateMixtureModel(data, model, hyperParams)
+    mixDiff = diffModels(model, newmodel)
+    logging.info("Iter: " + str(i) + ", mixDiff: " + str(mixDiff))
+    model = newmodel
+    logging.debug(", model = " + str(model.mixture) + " * " + str(model.multinomials))
+    
   return model
+
+def diffModels(oldParams, newParams):
+  mixtureDiff = 0
+  for c in range(0, oldParams.C):
+    mixtureDiff += (oldParams.mixture[c] - newParams.mixture[c]) ** 2
+  return mixtureDiff
+
+
+
+# Find the datapoint that fits the model the worst
+def worstFit(data, model):
+  n = 0
+  worstLogProb = 0
+  worstN = -1
+  worstC = -1
+
+  for row in data:
+    bestComponent = -1
+    bestComponentProb = 0
+
+    componentProbs = getComponentProbabilitiesForCounts(row, model)
+    for c in range(0, model.C):
+      if (componentProbs[c] > bestComponentProb):
+        bestComponent = c
+        bestComponentProb = componentProbs[c]
+
+    logProb = getLogProbabilityForComponent(row, model, bestComponent)
+
+    if (logProb < worstLogProb):
+      worstLogProb = logProb
+      worstN = n
+      worstC = bestComponent
+
+    n += 1
+
+  return worstLogProb, worstN, worstC
+
+
+
+

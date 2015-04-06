@@ -79,7 +79,7 @@ for row in reader:
 		data = map(int, row)
 		if (len(data) != K):
 			logging.error("There are %s categories, but line has %s counts." % (K, len(data)))
-			logging.error("line %s: %s" % (i, data))
+			logging.error("line %s: %s" % (idx, data))
 		
 		
 		while sum(data) > options.M: data[Sample.drawCategory(data)] -= 1
