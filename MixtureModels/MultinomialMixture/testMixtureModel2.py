@@ -46,3 +46,8 @@ for k in range(0, 168):
   for i in range(0, C):
     print str(finalModel.multinomials[i][k]) + "\t",
   print ""
+
+(worseLogProb, worstN, worstC) = MME.worstFit(dataset, finalModel)
+print "worstLogProb", worseLogProb
+print "worst N", worstN
+print "worst C", worstC

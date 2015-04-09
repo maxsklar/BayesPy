@@ -108,6 +108,18 @@ def getLogProbabilityForComponent(counts, model, c):
   logProb += math.log(model.mixture[c])
   return logProb
 
+def getNormalizedLogProbabilityForComponent(counts, model, c):
+  logProb = getLogProbabilityForComponent(counts, model, c)
+  
+  for i in range(0, sum(counts)):
+    logProb += math.log(i + 1)
+
+  for count in counts:
+    for i in range(0, count):
+      logProb -= math.log(i + 1)
+
+  return logProb
+
 # given a count vector C, and a multinomial M, the energy is
 def findMultinomialFromCountsAndWeights(counts, weights, hyperparams):
   N = len(weights)
@@ -211,8 +223,7 @@ def worstFit(data, model):
         bestComponent = c
         bestComponentProb = componentProbs[c]
 
-    logProb = getLogProbabilityForComponent(row, model, bestComponent)
-
+    logProb = getNormalizedLogProbabilityForComponent(row, model, bestComponent)
     if (logProb < worstLogProb):
       worstLogProb = logProb
       worstN = n
