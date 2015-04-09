@@ -33,14 +33,17 @@ class MultinomialMixtureModel:
       self.multinomials = multinomials
       self.mixture = mixture
   
-  def outputToFile(self, out):
+  def outputToFileDontClose(self, out):
     out.write("\t".join(map(str, self.mixture)))
     out.write("\n")
     for d in self.multinomials: 
       out.write("\t".join(map(str, d)))
       out.write("\n")
+  
+  def outputToFile(self, out):
+    self.outputToFileDontClose(out)
     out.close
-    
+
   def logToDebug(self):
     logging.debug("\t".join(map(str, self.mixture)))
     for d in self.multinomials: 
@@ -101,23 +104,24 @@ def getComponentProbabilitiesForCounts(counts, model):
   
   return logProbsToProbabilityDistribution(logProbs)
 
+def assignComponentToCounts(counts, model):
+  highestLP = float("-inf")
+  componentWithHighestLP = -1
+
+  for c in range(0, model.C):
+    LP = getLogProbabilityForComponent(counts, model, c)
+    if (LP > highestLP):
+      highestLP = LP
+      componentWithHighestLP = c
+
+  return componentWithHighestLP
+
+
 def getLogProbabilityForComponent(counts, model, c):
   logProb = 0.
   for k in range(0, model.K):
     logProb += math.log(model.multinomials[c][k]) * counts[k]
   logProb += math.log(model.mixture[c])
-  return logProb
-
-def getNormalizedLogProbabilityForComponent(counts, model, c):
-  logProb = getLogProbabilityForComponent(counts, model, c)
-  
-  for i in range(0, sum(counts)):
-    logProb += math.log(i + 1)
-
-  for count in counts:
-    for i in range(0, count):
-      logProb -= math.log(i + 1)
-
   return logProb
 
 # given a count vector C, and a multinomial M, the energy is
@@ -209,30 +213,32 @@ def diffModels(oldParams, newParams):
 # Find the datapoint that fits the model the worst
 def worstFit(data, model):
   n = 0
-  worstLogProb = 0
+  worstChiSq = 0
   worstN = -1
   worstC = -1
 
   for row in data:
-    bestComponent = -1
-    bestComponentProb = 0
+    c = assignComponentToCounts(row, model)
 
-    componentProbs = getComponentProbabilitiesForCounts(row, model)
-    for c in range(0, model.C):
-      if (componentProbs[c] > bestComponentProb):
-        bestComponent = c
-        bestComponentProb = componentProbs[c]
-
-    logProb = getNormalizedLogProbabilityForComponent(row, model, bestComponent)
-    if (logProb < worstLogProb):
-      worstLogProb = logProb
+    chiSq = chiSquared(row, model, c)
+    if (chiSq > worstChiSq):
+      worstChiSq = chiSq
       worstN = n
-      worstC = bestComponent
+      worstC = c
 
     n += 1
 
-  return worstLogProb, worstN, worstC
+  return worstChiSq, worstN, worstC
 
+def chiSquared(row, model, c):
+  S = 0
+  N = sum(row)
+  mleModel = map(lambda x: float(x) / N, row)
 
+  for k in range(0, len(row)):
+    modelDiff = mleModel[k] - model.multinomials[c][k]
+    S += (modelDiff ** 2) / model.multinomials[c][k]
+
+  return S * N
 
 

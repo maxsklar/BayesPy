@@ -9,8 +9,7 @@ import string
 parser = OptionParser()
 parser.add_option("-L", '--loglevel', action="store", dest="loglevel", default='DEBUG', help="don't print status messages to stdout")
 parser.add_option("-C", '--numComponents', action="store", dest="C", default="1", help="the number of components in the mixture model")
-parser.add_option("-I", '--numIterations', action="store", dest="I", default="50", help="the number of iterations to run the mixture model")
-parser.add_option("-O", '--outputModelFile', action="store", dest="outputModel", default="", help="store the model on this file")
+parser.add_option("-m", '--modelFile', action="store", dest="modelFile", default="", help="the stored model file")
 
 (options, args) = parser.parse_args()
 
@@ -22,7 +21,8 @@ if not isinstance(numeric_level, int):
 logging.basicConfig(level=numeric_level)
 
 C = int(options.C)
-iterations = int(options.I)
+
+model = MME.importFile(options.modelFile)
 
 print "init dataset"
 dataset = []
@@ -31,27 +31,23 @@ for row in sys.stdin:
   dataset.append(map(int, splitrow))
 print "finished dataset"
 
-hyperP = MME.MultinomialMixtureModelHyperparams(C, 168, [1]*C, [1]*168)
+for n in range(0, len(dataset)):
+  counts = dataset[n]
+  print str(n) + "\t" + str(MME.assignComponentToCounts(counts, model))
 
-finalModel = MME.computeDirichletMixture(dataset, hyperP, iterations)
+# print file for google docs
+#print "component\t",
+#for i in range(0, C): print str(i) + "\t",
+#print ""
+#print "prior\t" + "\t".join(map(str, finalModel.mixture))
+#
+#for k in range(0, 168):
+#  print str(k) + "\t",
+#  for i in range(0, C):
+#    print str(finalModel.multinomials[i][k]) + "\t",
+#  print ""
 
-logging.debug("Final Model:")
-outputModel = sys.stdin
-if (options.outputModel): outputModel = open(options.outputModel, 'w')
-finalModel.outputToFile(outputModel)
-
-print "component\t",
-for i in range(0, C): print str(i) + "\t",
-print ""
-print "prior\t" + "\t".join(map(str, finalModel.mixture))
-
-for k in range(0, 168):
-  print str(k) + "\t",
-  for i in range(0, C):
-    print str(finalModel.multinomials[i][k]) + "\t",
-  print ""
-
-(worseLogProb, worstN, worstC) = MME.worstFit(dataset, finalModel)
+(worseLogProb, worstN, worstC) = MME.worstFit(dataset, model)
 print "worstLogProb", worseLogProb
 print "worst N", worstN
 print "worst C", worstC
