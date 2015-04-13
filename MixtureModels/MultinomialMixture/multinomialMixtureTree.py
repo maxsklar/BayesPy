@@ -19,12 +19,12 @@ class MultinomialMixtureTree:
   def __init__(self, multinomialMixture):
     self.K = multinomialMixture.K
 
-    # This is the top level multinomial mixture. It starts off as None, but when it gets added
+    # This is the top level multinomial mixture.
     self.multinomialMixture = multinomialMixture
 
     # Each component can be further branched into a tree, but it starts out with an empty tree (represented by None)
     # if it's not branched.
-    self.mixtureNodes = [None] * mixture.C
+    self.mixtureNodes = [None] * multinomialMixture.C
 
   def outputToFileDontClose(self, out):
     self.outputToFileWithTreeMarkings(out, [])
@@ -41,6 +41,8 @@ class MultinomialMixtureTree:
     for c in range(0, self.multinomialMixture.C):
       if (self.mixtureNodes[c]):
         self.mixtureNodes[c].outputToFileWithTreeMarkings(treeLocations + [c])
+      else:
+        out.write("") # Empty mixture
 
   def outputToFile(self, out):
     self.outputToFileDontClose(out)
@@ -60,9 +62,61 @@ class MultinomialMixtureTree:
 def importFile(filename):
   infile = file(filename, 'r')
   reader = csv.reader(infile, delimiter='\t')
+
+  treeModel = readSingleTreeAndChildrenFromInfile(reader)
+  return treeModel
+
+def readSingleTreeAndChildrenFromInfile(reader):
+  model = readSingleTreeFromInfile(reader)
+  if (model == None): return None
+  treeModel = new MultinomialMixtureTree(model)
+
+  for c in range(0, treeModel.multinomialMixture.C):
+    child = readSingleTreeAndChildrenFromInfile(reader)
+    treeModel.mixtureNodes[c] = child
+
+  return treeModel
+
+def readSingleTreeFromInfile(reader):
   mixture = map(float, reader.next())
+
+  if (len(mixture) == 0): return None # We've reached a terminal node
+
   multinomials = []
-  for row in reader: multinomials.append(map(float, row))
+  for i in range(0, len(mixture)):
+    row = reader.next()
+    multinomials.append(map(float, row))
+
   K = 2
   if (len(multinomials) > 0): K = len(multinomials[0])
+
   return MultinomialMixtureModel(len(mixture), K, multinomials, mixture)
+
+# The standard way to build a mixture tree 
+# - set a fixed number of branches per node
+# - set a fixed height
+def buildSimpleMixtureTree(data, K, iterations, height, branchesPerNode = 2):
+  if (height == 0): return None
+
+  # hyperparameters are fixed here:
+  hyperP = MME.MultinomialMixtureModelHyperparams(branchesPerNode, K, [1.0 / C]*C, [1.0 / K]*K)
+
+  mixtureModel = MME.computeDirichletMixture(dataset, hyperP, iterations)
+  
+  smallerDatasets = []
+  for c in range(0, hyperP.C): smallerDatasets.append([])
+
+  for counts in data:
+    c = MME.assignComponentToCounts(counts, mixtureModel)
+    smallerDatasets[c].append(counts)
+
+  treeModel = new MultnomialMixtureTree(mixtureModel)
+
+  for c in range(0, hyperP.C):
+    smallerDataset = smallerDatasets[c]
+    child = buildSimpleMixtureTree(smallerDataset, K, iterations, height - 1, branchesPerNode)
+    treeModel.mixutreNodes[c] = child
+
+  return treeModel
+
+

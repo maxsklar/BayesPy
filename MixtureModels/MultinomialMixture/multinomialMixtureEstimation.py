@@ -5,7 +5,7 @@
 # @maxsklar
 # https://github.com/maxsklar
 
-# Copyright 2013 Max Sklar
+# Copyright 2015 Max Sklar
 
 import math
 import random
