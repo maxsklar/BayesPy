@@ -208,37 +208,35 @@ def diffModels(oldParams, newParams):
     mixtureDiff += (oldParams.mixture[c] - newParams.mixture[c]) ** 2
   return mixtureDiff
 
-
-
 # Find the datapoint that fits the model the worst
 def worstFit(data, model):
   n = 0
-  worstChiSq = 0
+  worstLr = 0
   worstN = -1
   worstC = -1
 
   for row in data:
     c = assignComponentToCounts(row, model)
 
-    chiSq = chiSquared(row, model, c)
-    if (chiSq > worstChiSq):
-      worstChiSq = chiSq
+    lr = klTest(row, model, c)
+    if (lr > worstLr):
+      worstLr = lr
       worstN = n
       worstC = c
 
     n += 1
 
-  return worstChiSq, worstN, worstC
+  return worstLr, worstN, worstC
 
-def chiSquared(row, model, c):
+def klTest(row, model, c):
   S = 0
   N = sum(row)
+  K = len(row)
   mleModel = map(lambda x: float(x) / N, row)
 
-  for k in range(0, len(row)):
-    modelDiff = mleModel[k] - model.multinomials[c][k]
-    S += (modelDiff ** 2) / model.multinomials[c][k]
+  for k in range(0, K):
+    S += model.multinomials[c][k] * math.log((N + K) * model.multinomials[c][k] / (row[k] + 1.0))
 
-  return S * N
+  return S
 
 

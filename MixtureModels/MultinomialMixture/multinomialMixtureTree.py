@@ -12,6 +12,7 @@ import random
 import logging
 import csv
 import samplingTools as ST
+import multinomialMixtureEstimation as MME
 
 # In this model, we have a tree of multinomial mixtures (which is much faster to compute than a flat mixture)
 class MultinomialMixtureTree:
@@ -40,7 +41,7 @@ class MultinomialMixtureTree:
     #output the submixtures
     for c in range(0, self.multinomialMixture.C):
       if (self.mixtureNodes[c]):
-        self.mixtureNodes[c].outputToFileWithTreeMarkings(treeLocations + [c])
+        self.mixtureNodes[c].outputToFileWithTreeMarkings(out, treeLocations + [c])
       else:
         out.write("") # Empty mixture
 
@@ -69,7 +70,8 @@ def importFile(filename):
 def readSingleTreeAndChildrenFromInfile(reader):
   model = readSingleTreeFromInfile(reader)
   if (model == None): return None
-  treeModel = new MultinomialMixtureTree(model)
+
+  treeModel = MultinomialMixtureTree(model)
 
   for c in range(0, treeModel.multinomialMixture.C):
     child = readSingleTreeAndChildrenFromInfile(reader)
@@ -90,7 +92,7 @@ def readSingleTreeFromInfile(reader):
   K = 2
   if (len(multinomials) > 0): K = len(multinomials[0])
 
-  return MultinomialMixtureModel(len(mixture), K, multinomials, mixture)
+  return MME.MultinomialMixtureModel(len(mixture), K, multinomials, mixture)
 
 # The standard way to build a mixture tree 
 # - set a fixed number of branches per node
@@ -99,9 +101,9 @@ def buildSimpleMixtureTree(data, K, iterations, height, branchesPerNode = 2):
   if (height == 0): return None
 
   # hyperparameters are fixed here:
-  hyperP = MME.MultinomialMixtureModelHyperparams(branchesPerNode, K, [1.0 / C]*C, [1.0 / K]*K)
+  hyperP = MME.MultinomialMixtureModelHyperparams(branchesPerNode, K, [1.0 / branchesPerNode]*branchesPerNode, [1.0 / K]*K)
 
-  mixtureModel = MME.computeDirichletMixture(dataset, hyperP, iterations)
+  mixtureModel = MME.computeDirichletMixture(data, hyperP, iterations)
   
   smallerDatasets = []
   for c in range(0, hyperP.C): smallerDatasets.append([])
@@ -110,12 +112,12 @@ def buildSimpleMixtureTree(data, K, iterations, height, branchesPerNode = 2):
     c = MME.assignComponentToCounts(counts, mixtureModel)
     smallerDatasets[c].append(counts)
 
-  treeModel = new MultnomialMixtureTree(mixtureModel)
+  treeModel = MultinomialMixtureTree(mixtureModel)
 
   for c in range(0, hyperP.C):
     smallerDataset = smallerDatasets[c]
     child = buildSimpleMixtureTree(smallerDataset, K, iterations, height - 1, branchesPerNode)
-    treeModel.mixutreNodes[c] = child
+    treeModel.mixtureNodes[c] = child
 
   return treeModel
 

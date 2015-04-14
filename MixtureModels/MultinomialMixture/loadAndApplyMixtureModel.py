@@ -24,16 +24,14 @@ C = int(options.C)
 
 model = MME.importFile(options.modelFile)
 
-print "init dataset"
 dataset = []
 for row in sys.stdin:
   splitrow = row.split("\t")
   dataset.append(map(int, splitrow))
-print "finished dataset"
 
-for n in range(0, len(dataset)):
-  counts = dataset[n]
-  print str(n) + "\t" + str(MME.assignComponentToCounts(counts, model))
+#for n in range(0, len(dataset)):
+#  counts = dataset[n]
+#  print str(n) + "\t" + str(MME.assignComponentToCounts(counts, model))
 
 # print file for google docs
 #print "component\t",
@@ -47,7 +45,16 @@ for n in range(0, len(dataset)):
 #    print str(finalModel.multinomials[i][k]) + "\t",
 #  print ""
 
-(worseLogProb, worstN, worstC) = MME.worstFit(dataset, model)
-print "worstLogProb", worseLogProb
-print "worst N", worstN
-print "worst C", worstC
+rowInfoList = []
+N = 0
+for row in dataset:
+  c = MME.assignComponentToCounts(row, model)
+  klDiv = MME.klTest(row, model, c)
+  rowInfoList.append([N, c, klDiv])
+  N += 1
+
+sortedRows = sorted(rowInfoList, key=(lambda x: -x[2]))
+
+print "row\tmodel\tklDivergence"
+for row in sortedRows:
+  print "\t".join(map(str, row))
