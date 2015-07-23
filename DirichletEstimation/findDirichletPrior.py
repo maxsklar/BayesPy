@@ -39,7 +39,7 @@ parser.add_option('-s', '--sampleRate', dest='sampleRate', default='1', help='Ra
 parser.add_option('-K', '--numCategories', dest='K', default='2', help='The number of (tab separated) categories that are being counted')
 parser.add_option('-M', '--maxCountPerRow', dest='M', type=int, default=sys.maxint, help='The maximum number of the count per row.  Setting this lower increases the running time')
 parser.add_option("-L", '--loglevel', action="store", dest="loglevel", default='DEBUG', help="don't print status messages to stdout")
-parser.add_option('-H', '--hyperPrior', dest='H', default='', help='The hyperprior of the Dirichlet (number): a higher value indicates more bias towards tight dirichlets (very close to a single multinomial)')
+parser.add_option('-H', '--hyperPrior', dest='H', default='0', help='The hyperprior of the Dirichlet (number): a higher value indicates more bias towards tight dirichlets (very close to a single multinomial)')
 parser.add_option('-i', '--iterations', dest='iterations', default='50', help='How many iterations to do')
 
 (options, args) = parser.parse_args()
