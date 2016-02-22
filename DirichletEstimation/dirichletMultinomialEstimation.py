@@ -10,10 +10,6 @@
 import math
 import random
 import logging
-import scipy.special as mathExtra
-
-def digamma(x): return float(mathExtra.psi(x))
-def trigamma(x): return float(mathExtra.polygamma(1, x))
 
 #Find the log probability that we see a certain set of data
 # give our prior.mate d
@@ -122,7 +118,50 @@ def predictStepLogSpace(gradient, priors, data):
 	totalHConst = priorHessianConst(priors, data)
 	totalHDiag = priorHessianDiag(priors, data)
 	return getPredictedStepAlt(totalHConst, totalHDiag, gradient, priors)
-	
+
+
+def buildFullHessian(priors, data):
+  totalHConst = priorHessianConst(priors, data)
+  totalHDiag = priorHessianDiag(priors, data)
+  K = data.K
+  retVal = []
+  for k in range(0, K):
+    returnedRow = [totalHConst] * K
+    returnedRow[k] += totalHDiag[k]
+    retVal.append(returnedRow)
+  return retVal
+
+def peshkinConfidenceInterval(priors, data, samplSz = 1000):
+  hessian = buildFullHessian(priors, data)
+
+  U, s, V = np.linalg.svd(hessian, full_matrices=True)
+  S = np.diag(s)
+
+  rp = []
+  rpColumnSums = [0.0] * K
+  rpSum = 0.0
+  for i in range(0, samplSz):
+    row = [0.] * K
+    normalRandomVector = np.random.multivariate_normal([0]*K,np.diag([1]*K))
+    for k in range(0, K):
+      row[k] = priors[k] + s[k] * normalRandomVector[k]
+      rpColumnSums[k] += row[k]
+
+    rp.append(row)
+    rpSum += sum(row)
+
+  theta_hat = [0.0] * K
+  theta = [0.0] * K
+  for k in range(0, K):
+    theta_hat[k] = (priors(k)-1) / (sum(priors)-K)
+
+    ### ???????????????????????????????????
+    theta[k] = (rpColumnSums[k] - 1) / (sum(rpSum) - K)
+
+  # TODO: crop thetas
+  # TODO: calculate quantiles
+ 
+  return theta_hat, theta
 
 # Returns whether it's a good step, and the loss	
 def testTrialPriors(trialPriors, data, hyperprior=0):
