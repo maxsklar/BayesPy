@@ -49,12 +49,10 @@ rowInfoList = []
 N = 0
 for row in dataset:
   c = MME.assignComponentToCounts(row, model)
-  klDiv = MME.klTest(row, model, c)
-  rowInfoList.append([N, c, klDiv])
+  klDiv = MME.klTest(row, model.multinomials[c])
+  rowInfoList.append([N, c, klDiv, sum(row)])
   N += 1
 
-sortedRows = sorted(rowInfoList, key=(lambda x: -x[2]))
-
-print "row\tmodel\tklDivergence"
-for row in sortedRows:
+print "row\tmodel\tklDivergence\tNumber of Data Points"
+for row in rowInfoList:
   print "\t".join(map(str, row))

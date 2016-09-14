@@ -90,6 +90,9 @@ def computeDirichletMixture(data, hyperParams, iterations, batchSize, learnRate)
   for i in range(0, iterations):
     newmodel = updateMixtureModel(data, model, hyperParams, batchSize, learnRate)
     mixDiff = diffModels(model, newmodel)
+    
+    testMinibatch = makeMinibatch(data, batchSize)
+    
     logging.info("Iter: " + str(i) + ", mixDiff: " + str(mixDiff))
     model = newmodel
     logging.debug(", model = " + str(model.mixture) + " * " + str(model.multinomials))

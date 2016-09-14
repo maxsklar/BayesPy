@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# A library for finding a dirichlet mixture mixture from count data
+# A library for finding a dirichlet mixture from count data
 # By: Max Sklar
 # @maxsklar
 # https://github.com/maxsklar
@@ -260,6 +260,9 @@ def worstFitForSingleMultinomial(data, multinomial):
 def klTest(row, multinomial):
   S = 0
   N = sum(row)
+  
+  if (N == 0): return None
+
   K = len(row)
   mleModel = map(lambda x: float(x) / N, row)
 
