@@ -201,7 +201,6 @@ def initMixtureModel(data, hyperParams):
       numerator = float(data[c][k]) + hyperParams.componentDirich[k]
       multinomials[c][k] = numerator / denominator
 
-  
   return MultinomialMixtureModel(C, K, multinomials, mixture)
 
 def computeDirichletMixture(data, hyperParams, iterations):

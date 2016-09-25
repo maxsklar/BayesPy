@@ -16,7 +16,6 @@ parser.add_option("-B", '--batchSize', action="store", dest="B", default="", hel
 parser.add_option("-R", '--learnRate', action="store", dest="R", default="", help="learn rate (between 0 and 1)")
 parser.add_option("-K", '--numCategories', action="store", dest="K", default="", help="the number of categories")
 
-
 (options, args) = parser.parse_args()
 
 #Set the log level
@@ -54,4 +53,5 @@ finalModel.outputToFile(outputModel)
 (worst, worstN, worstC) = MME.worstFit(dataset, finalModel)
 print "worst", worst
 print "worst N", worstN
+print "worst: ", dataset[worstN]
 print "worst C", worstC

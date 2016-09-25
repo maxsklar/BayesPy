@@ -77,11 +77,8 @@ def initMixtureModel(data, hyperParams):
   
   multinomials = []
   for c in range(0, C):
-    multinomials.append([0.0]*K)
-    denominator = sum(data[c]) + sum(hyperParams.componentDirich)
-    for k in range(0, K): 
-      numerator = float(data[c][k]) + hyperParams.componentDirich[k]
-      multinomials[c][k] = numerator / denominator
+    randomMultinomial = ST.drawFromDirichlet(hyperParams.componentDirich)
+    multinomials.append(randomMultinomial)
   
   return MME.MultinomialMixtureModel(C, K, multinomials, mixture)
 
