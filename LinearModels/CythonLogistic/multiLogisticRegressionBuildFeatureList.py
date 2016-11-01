@@ -1,6 +1,4 @@
 #!/usr/bin/python
-#
-# EXPERIMENTAL
 
 import sys
 import csv
