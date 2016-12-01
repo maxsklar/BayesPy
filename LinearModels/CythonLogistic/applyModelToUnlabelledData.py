@@ -68,19 +68,9 @@ logging.debug("loaded %s records into memory" % numFeatures)
 
 logging.debug("Reading Test data")
 
-totalLoss = 0.0
-numDataPoints = 0
-numCorrect = 0
-numWithinOne = 0
-numWithinTwo = 0
-totalDistance = 0.0
-
-confusionCountMatrix = []
-for k in range(0, K): confusionCountMatrix.append([0] * K)
-
 for line in open(options.testSet, 'r'):
   row = line.replace("\n", "").split("\t")
-  label = int(row[0])
+  rowName = int(row[0])
   features = {"__CONST__": 1}
   for i in range(1, len(row)):
     featureStr = row[i]
@@ -96,44 +86,13 @@ for line in open(options.testSet, 'r'):
     count = features[feature]
     weights = featureWeights.get(feature, [0.0] * K)
     for k in range(0, K): scores[k] += (count * weights[k])
-  
-  labelWeight = scores[label]
-  
-  totalLoss += math.log(sum(map(math.exp, scores)))
-  totalLoss -= labelWeight
 
-  # Which Scores is highest
-  highestFeature = 0
-  for k in range(0, K):
-    if (scores[k] > scores[highestFeature]):
-      highestFeature = k
+  scoresExp = map(math.exp, scores)
+  scoresSum = sum(scoresExp)
+  probabilities = map(lambda x: x / scoresSum, scoresExp)
 
-  if (highestFeature == label): numCorrect += 1
+  print str(rowName) + "\t"  + "\t".join(map(lambda x: str(x), probabilities))
 
-  distance = abs(highestFeature - label)
-
-  if (distance <= 1): numWithinOne += 1
-  if (distance <= 2): numWithinTwo += 1
-  totalDistance += distance
-
-  confusionCountMatrix[label][highestFeature] += 1
-
-  numDataPoints += 1
-
-print "Total Loss: " + str(totalLoss) 
-print "Num datapoints: " + str(numDataPoints)
-print "Num correct: " + str(numCorrect) + " Prob: " + str(float(numCorrect)/ numDataPoints)
-print "Num within one: " + str(numWithinOne) + " Prob: " + str(float(numWithinOne)/ numDataPoints)
-print "Num within two: " + str(numWithinTwo) + " Prob: " + str(float(numWithinTwo)/ numDataPoints)
-
-print "Average Loss: " + str(totalLoss / numDataPoints)
-
-for row in confusionCountMatrix:
-  s = sum(row)
-  if (s == 0): s = 1
-  r = map(lambda x: "{0:.0f}%".format(float(x) * 100 / s), row)
-
-  print "\t".join(map(str, r)) + "\n"
 
 calcTime = time.time()
-logging.debug("time to calculate loss: %s " % (calcTime - startTime))
+logging.debug("time to calculate: %s " % (calcTime - startTime))
