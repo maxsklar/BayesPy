@@ -38,6 +38,7 @@ parser.add_option("-F", '--featureListFile', action="store", dest="featureListFi
 parser.add_option('-i', '--iterations', dest='iterations', default='50', help='How many iterations to do')
 parser.add_option('-K', '--K', dest='K', default='2', help='Number of classes')
 parser.add_option('-N', '--N', dest='N', default='2', help='Number of datapoints')
+parser.add_option('--conv', '--convergenceDistance', dest='conv', default='0.001', help='Convergence distance')
 
 (options, args) = parser.parse_args()
 
@@ -83,7 +84,7 @@ dataPointAccum.finalize()
 
 logging.debug("finalized data")
 
-params = MLR.batchCompute(dataPointAccum, L1, L2, 0.001, iterations)
+params = MLR.batchCompute(dataPointAccum, L1, L2, float(options.conv), iterations)
 
 logging.debug("Printing final weights: ")
 print "__CONST__\t" + "\t".join(map(str, dataPointAccum.__CONST__))
