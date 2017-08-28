@@ -22,7 +22,6 @@ import sys
 import csv
 import math
 import random
-import multiLogisticRegression as MLR
 import time
 from optparse import OptionParser
 import logging

@@ -67,6 +67,7 @@ for k in range(0, K):
   print "Top 20"
   bests = sorted(featureProbs.items(), key=lambda x: -1 * featureProbs[x[0]][k])
   for i in range(0, 20):
+    if (len(bests) <= i): continue
     (feature, probDist) = bests[i]
     print str(i) + "\t" + feature + "\t" + str(probDist)
 

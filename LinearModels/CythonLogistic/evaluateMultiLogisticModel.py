@@ -1,8 +1,5 @@
 #!/usr/bin/python
 #
-# THIS MODEL IS EXPERIMENTAL
-#
-# Finding the optimal dirichlet prior from counts
 # By: Max Sklar
 # @maxsklar
 # https://github.com/maxsklar
@@ -76,7 +73,10 @@ numWithinTwo = 0
 totalDistance = 0.0
 
 confusionCountMatrix = []
-for k in range(0, K): confusionCountMatrix.append([0] * K)
+probabilisticConfusion = []
+for k in range(0, K):
+  confusionCountMatrix.append([0] * K)
+  probabilisticConfusion.append([0] * K)
 
 for line in open(options.testSet, 'r'):
   row = line.replace("\n", "").split("\t")
@@ -98,13 +98,19 @@ for line in open(options.testSet, 'r'):
     for k in range(0, K): scores[k] += (count * weights[k])
   
   labelWeight = scores[label]
+
+  exponentiateScores = map(math.exp, scores)
+  sumOfExpScores = sum(exponentiateScores)
   
-  totalLoss += math.log(sum(map(math.exp, scores)))
+  totalLoss += math.log(sumOfExpScores)
   totalLoss -= labelWeight
+
+  probabilities = map(lambda x: x / sumOfExpScores, exponentiateScores)
 
   # Which Scores is highest
   highestFeature = 0
   for k in range(0, K):
+    probabilisticConfusion[label][k] += probabilities[k]
     if (scores[k] > scores[highestFeature]):
       highestFeature = k
 
@@ -128,12 +134,29 @@ print "Num within two: " + str(numWithinTwo) + " Prob: " + str(float(numWithinTw
 
 print "Average Loss: " + str(totalLoss / numDataPoints)
 
-for row in confusionCountMatrix:
+print "Confusion Matrix on Highest Probability"
+print "\texamples",
+for k in range(0, K): print "\tPredict " + str(k),
+print ""
+for i in range(0, len(confusionCountMatrix)):
+  row = confusionCountMatrix[i]
   s = sum(row)
   if (s == 0): s = 1
   r = map(lambda x: "{0:.0f}%".format(float(x) * 100 / s), row)
 
-  print "\t".join(map(str, r)) + "\n"
+  print "Label " + str(i) + "\t" + str(s) + "\t" + "\t".join(map(str, r))
+
+print "Probabilistic Confusion Matrix"
+print "\texamples",
+for k in range(0, K): print "\tPredict " + str(k),
+print ""
+for i in range(0, len(probabilisticConfusion)):
+  row = probabilisticConfusion[i]
+  s = sum(row)
+  if (s == 0): s = 1
+  r = map(lambda x: "{0:.0f}%".format(float(x) * 100 / s), row)
+
+  print "Label " + str(i) + "\t" + str(s) + "\t" + "\t".join(map(str, r))
 
 calcTime = time.time()
 logging.debug("time to calculate loss: %s " % (calcTime - startTime))

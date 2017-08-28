@@ -7,7 +7,7 @@
 # A sample of a file to pipe into this python script is given by logisticRegressionTest.csv
 
 # ex
-# cat logisticRegressionTest.csv | ./findLogisticModel.py
+# python diagnosticMultiLogisticModel.py -m model.txt -k 3
 
 # Each row contains first the label, then a series of feature:value pairs separated by tabs
 # If the feature isn't given at all, it is assumed to be 0
@@ -17,7 +17,6 @@ import sys
 import csv
 import math
 import random
-import multiLogisticRegression as MLR
 import time
 from optparse import OptionParser
 import logging
@@ -71,4 +70,4 @@ for k in range(0, K):
     print str(i) + "\t" + feature + "\t" + str(probDist)
 
 calcTime = time.time()
-logging.debug("time to calculate loss: %s " % (calcTime - startTime))
+logging.debug("runnning time: %s " % (calcTime - startTime))
