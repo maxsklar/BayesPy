@@ -92,7 +92,7 @@ def batchCompute(dataPointAccumulator, L1, L2, convergence, maxIters, allowLoggi
   for i in range(0, maxIters):
     (maxDist, maxDistF, maxDistD) = batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging)
     if (allowLogging):
-      maxDistIx = dataPointAccumulator.featureReverseLookup[maxDistF]
+      maxDistIx = dataPointAccumulator.featureReverseLookup.get(maxDistF, 0.0)
       logging.debug("Iteration " + str(i) + ", Dist: " + str(maxDist) + " on " + maxDistF + ":" + str(maxDistD) + " now " + str(params.get(maxDistIx, [0.0, 0.0, 0.0])) + ", Features: " + str(len(params)))
     if (maxDist < convergence):
       if (allowLogging): logging.debug("Converge criteria met.")
@@ -112,26 +112,28 @@ def batchCompute(dataPointAccumulator, L1, L2, convergence, maxIters, allowLoggi
 # distance: maximum distance between new and old params
 def batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging = True):
   numDatapoints = dataPointAccumulator.N
+  numFeatures = dataPointAccumulator.numFeatures
   totalLoss = 0.0
   
   maxDistance = 0.0
-  featureWithMaxDistance = ''
+  featureWithMaxDistance = 0
   dimWithMaxDistance = 0
   K = dataPointAccumulator.K
   
   featureIx = 0
   
-  featureDeriv = np.zeros(3)
+  featureDeriv = np.zeros(numFeatures)
+
   # This really should be a 2D hession, but for now use the diagonal hessian
-  diagHessian = np.zeros(3)
+  diagHessian = np.zeros(numFeatures)
   
-  for featureIx in range(0, dataPointAccumulator.numFeatures):
+  for featureIx in range(0, numFeatures):
     for k in range(0, K):
       featureDeriv[k] = 0.0
       diagHessian[k] = 0.0
     
-    for dataPointIx in dataPointAccumulator.featureMatrix[featureIx]:
-      count = dataPointAccumulator.featureMatrix[featureIx][dataPointIx]
+    for dataPointIx in range(0, numDatapoints):
+      count = dataPointAccumulator.featureMatrix[featureIx].get(dataPointIx, 0)
       label = dataPointAccumulator.labels[dataPointIx]
       currentEnergies = scores[dataPointIx]
       currentEnergiesFixed = map(lambda x: x - max(currentEnergies), currentEnergies)
@@ -201,8 +203,8 @@ def batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging = True)
     else: params[featureIx] = newValues
     
     # Update Scores Vector
-    for dataPointIx in dataPointAccumulator.featureMatrix[featureIx]:
-      count = dataPointAccumulator.featureMatrix[featureIx][dataPointIx]
+    for dataPointIx in range(0, numDatapoints):
+      count = dataPointAccumulator.featureMatrix[featureIx].get(dataPointIx, 0)
       for i in range(0, K):
         scores[dataPointIx][i] += count * (newValues[i] - currentValues[i])
     
@@ -241,10 +243,14 @@ def lineToLabelAndFeatures(line):
   for i in range(1, len(row)):
     featureStr = row[i]
     featureCutPointA = featureStr.rfind(":")
-    featureCutPointB = featureCutPointA + 1
-    feature = featureStr[:featureCutPointA]
-    if (feature == "__CONST__"): continue
-    count = int(float(featureStr[featureCutPointB:]))
-    features[feature] = count
+
+    if (featureCutPointA == -1):
+      features[featureStr] = 1
+    else:
+      featureCutPointB = featureCutPointA + 1
+      feature = featureStr[:featureCutPointA]
+      if (feature == "__CONST__"): continue
+      count = int(float(featureStr[featureCutPointB:]))
+      features[feature] = count
   
   return label, features
