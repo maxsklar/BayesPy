@@ -68,7 +68,7 @@ def drawCategory(distribution):
 
 def sampleFromMultinomial(multinomial, M):
   buckets = [0]*len(multinomial)
-
+  
   for m in range(0, M):
     category = drawCategory(multinomial)
     buckets[category] += 1

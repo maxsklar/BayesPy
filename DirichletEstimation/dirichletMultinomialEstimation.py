@@ -10,6 +10,10 @@
 import math
 import random
 import logging
+import scipy.special as mathExtra
+
+def digamma(x): return float(mathExtra.psi(x))
+def trigamma(x): return float(mathExtra.polygamma(1, x))
 
 #Find the log probability that we see a certain set of data
 # give our prior.mate d

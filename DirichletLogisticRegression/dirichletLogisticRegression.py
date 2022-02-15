@@ -10,9 +10,11 @@ import math
 import logging
 import random
 import scipy.special as mathExtra
-import numpy.random as R
 import numpy as np
 import scipy.sparse as sparse
+
+def digamma(x): return float(mathExtra.psi(x))
+def trigamma(x): return float(mathExtra.polygamma(1, x))
 
 class FeatureListComputer:
   def __init__(self, K):
@@ -46,7 +48,7 @@ class DataPointAccumulator:
     self.featureForwardLookup = []
     self.numFeatures = 0
     self.labels = []
-    self.labelCounts = [0] * K
+    self.labelCounts = np.zeros(K, dtype=np.int32)
   
   def addFeature(self, feature):
     self.featureReverseLookup[feature] = self.numFeatures
@@ -59,7 +61,10 @@ class DataPointAccumulator:
   
   def appendRow(self, dataPoint, label):
     self.labels.append(label)
-    self.labelCounts[label] += 1
+    
+    for k in range(0, self.K):
+      self.labelCounts[k] += label[k]
+
     for feature in dataPoint:
       if (feature not in self.featureReverseLookup): continue
       featureIx = self.featureReverseLookup[feature]
@@ -69,8 +74,10 @@ class DataPointAccumulator:
     self.dataPointIx += 1
     
   def finalize(self):
-    self.__CONST__ = map(lambda x: math.log((0.1 + float(x)) / (self.N + 0.3)), self.labelCounts)
-    logging.debug("CONST: " + str(self.__CONST__))
+    # Took out constant feature
+    #self.__CONST__ = map(lambda x: math.log((0.1 + float(x)) / (self.N + 0.3)), self.labelCounts)
+    #logging.debug("CONST: " + str(self.__CONST__))
+    logging.debug("Note: Constant feature must be included in original dataset")
 
 # dataPoints: a list of data points. Each data point is a map from a feature name (a string) to a number
 # if a feature doesn't exist in the map, it is assumed to be zero
@@ -84,15 +91,17 @@ def batchCompute(dataPointAccumulator, L1, L2, convergence, maxIters, allowLoggi
   scores = np.zeros((dataPointAccumulator.N, dataPointAccumulator.K))
   for i in range(0, dataPointAccumulator.N):
     for k in range(0, dataPointAccumulator.K):
-      scores[i][k] = dataPointAccumulator.__CONST__[k]
+      scores[i][k] = 0.0 #dataPointAccumulator.__CONST__[k]
       
   logging.debug("Built the score matrix")
   params = {}
   for i in range(0, maxIters):
     (maxDist, maxDistF, maxDistD) = batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging)
+    
     if (allowLogging):
       maxDistIx = dataPointAccumulator.featureReverseLookup.get(maxDistF, 0.0)
-      logging.debug("Iteration " + str(i) + ", Dist: " + str(maxDist) + " on " + maxDistF + ":" + str(maxDistD) + " now " + str(params.get(maxDistIx, [0.0, 0.0, 0.0])) + ", Features: " + str(len(params)))
+      logging.debug("Iteration " + str(i) + ", Dist: " + str(maxDist) + " on " + str(maxDistF) + ":" + str(maxDistD) + " now " + str(params.get(maxDistIx, [0.0, 0.0, 0.0])) + ", Features: " + str(len(params)))
+    
     if (maxDist < convergence):
       if (allowLogging): logging.debug("Converge criteria met.")
       return params
@@ -121,33 +130,53 @@ def batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging = True)
   
   featureIx = 0
   
-  featureDeriv = np.zeros(numFeatures)
+  featureDeriv = np.zeros(K)
 
   # This really should be a 2D hession, but for now use the diagonal hessian
-  diagHessian = np.zeros(numFeatures)
+  diagHessian = np.zeros(K)
   
   for featureIx in range(0, numFeatures):
     for k in range(0, K):
       featureDeriv[k] = 0.0
       diagHessian[k] = 0.0
     
-    for dataPointIx in range(0, numDatapoints):
-      count = dataPointAccumulator.featureMatrix[featureIx].get(dataPointIx, 0)
+    for dataPointIx in dataPointAccumulator.featureMatrix[featureIx]:
+      if (dataPointIx >= numDatapoints): continue # we are limiting ourselves to these data
+      
+      count = dataPointAccumulator.featureMatrix[featureIx][dataPointIx]
+      if (count == 0): continue # no change to derivatives
+
       label = dataPointAccumulator.labels[dataPointIx]
+      labelSum = sum(label)
       currentEnergies = scores[dataPointIx]
-      currentEnergiesFixed = map(lambda x: x - max(currentEnergies), currentEnergies)
-      currentExpEnergies = map(math.exp, currentEnergiesFixed)
-      currentExpEnergiesSum = sum(currentExpEnergies)
-      probs = map(lambda x: x / currentExpEnergiesSum, currentExpEnergies)
-      prob = probs[label]
+
+      alpha = map(math.exp, currentEnergies)
+      alphaSum = sum(alpha)
+
+
+      #probs = map(lambda x: x / currentExpEnergiesSum, currentExpEnergies)
+      #prob = probs[label]
       
       for k in range(0, K):
-        featureDeriv[k] += count * probs[k]
-        if (k == label): featureDeriv[k] -= count
+        # TODO: There's a trick to compute these without the special functions!
+        D = 0.0
+        D += digamma(alpha[k])
+        D += digamma(alphaSum + labelSum)
+        D -= digamma(alphaSum)
+        D -= digamma(alpha[k] + label[k])
+
+        featureDeriv[k] += count * alpha[k] * D
+
+        D2 = 0.0
+        D2 += trigamma(alpha[k])
+        D2 += trigamma(alphaSum + labelSum)
+        D2 -= trigamma(alphaSum)
+        D2 -= trigamma(alpha[k] + label[k])
         
         # Diagonal part of the hessian
-        diagHessian[k] += (count ** 2) * probs[k] + (count ** 2) * (probs[k] * probs[k])
+        diagHessian[k] += (count ** 2) * alpha[k] * (D + alpha[k] * D2)
         
+
     # Add L2 regularization
     currentValues = params.get(featureIx, [0.0]*K)
     for i in range(0, K):
@@ -165,6 +194,9 @@ def batchStep(dataPointAccumulator, L1, L2, params, scores, allowLogging = True)
     
     diffs = [0.0] * K
     for i in range(0, K):
+      if (featureDeriv[i] == 0 and diagHessian[i] == 0): continue
+      if (diagHessian[i] == 0):
+        logging.debug("PROBLEM")
       diffs[i] += featureDeriv[i] / diagHessian[i]
     
     # Check if any diffs cause the values to cross 0. If they do, snap to zero!
@@ -225,17 +257,19 @@ def computeLossForDataset(dataPointAccumulator, params):
     totalDataPoints += 1
   return totalLoss / totalDataPoints
 
+# Note this calculation is specific to dirichletLogisticRegression
 def computeLossForDatapoint(dataPoint, label, params, K):
   E = energy(dataPoint, params, K)
-  expEnergies = map(math.exp, E)
-  return math.log(sum(expEnergies)) - E[label]
+  alpha = map(math.exp, E)
+  sum_term = sum(math.lgamma(alpha[k]) - math.lgamma(alpha[k] + label[k]) for k in range(K))
+  return sum_term + math.lgamma(sum(alpha) + sum(label)) - math.lgamma(sum(alpha))
 
-def lineToLabelAndFeatures(line):
+def lineToLabelAndFeatures(line, numCategories):
   row = line.replace("\n", "").split("\t")
-  label = int(row[0])
+  label = map(int, row[0:numCategories])
   features = {}
   
-  for i in range(1, len(row)):
+  for i in range(numCategories, len(row)):
     featureStr = row[i]
     featureCutPointA = featureStr.rfind(":")
 
