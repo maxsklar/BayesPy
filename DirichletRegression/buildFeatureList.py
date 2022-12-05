@@ -1,12 +1,10 @@
 #!/usr/bin/python
-#
-# EXPERIMENTAL
 
 import sys
 import csv
 import math
 import random
-import dirichletLogisticRegression as DLR
+import dirichletRegression as DR
 import time
 from optparse import OptionParser
 import logging
@@ -24,7 +22,7 @@ K = int(options.K)
 featureListComputer = DLR.FeatureListComputer(K)
 
 for line in sys.stdin:
-  (label, features) = DLR.lineToLabelAndFeatures(line)
+  (label, features) = DR.lineToLabelAndFeatures(line)
   featureListComputer.appendRow(features)
 
 featureListComputer.finalizeAndPrint(int(options.M))

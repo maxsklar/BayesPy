@@ -1,13 +1,9 @@
 #!/usr/bin/python
-#
-# THIS MODEL IS EXPERIMENTAL
-#
-# Copyright 2014 Max Sklar
 
 # A sample of a file to pipe into this python script is given by logisticRegressionTest.csv
 
 # ex
-# python diagnosticDirichletLogisticModel.py -m model.txt -k 3
+# python diagnosticDirichletModel.py -m model.txt -k 3
 
 # Each row contains first the label, then a series of feature:value pairs separated by tabs
 # If the feature isn't given at all, it is assumed to be 0
@@ -25,7 +21,7 @@ from random import shuffle
 startTime = time.time()
 parser = OptionParser()
 parser.add_option('-m', '--model', dest='model', help='File containing the logistic model')
-parser.add_option('-k', '--k', dest='k', help='File containing the logistic model')
+parser.add_option('-K', '--K', dest='k', help='Number of Categories')
 parser.add_option("-L", '--loglevel', action="store", dest="loglevel", default='DEBUG', help="don't print status messages to stdout")
 
 (options, args) = parser.parse_args()
