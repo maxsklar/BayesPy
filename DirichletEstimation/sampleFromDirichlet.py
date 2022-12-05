@@ -14,14 +14,14 @@ parser.add_option('-O', '--outputType', dest='O', default='multnomials', help='T
 (options, args) = parser.parse_args()
 
 
-alphas = map(float, options.A.split(","))
+alphas = list(map(float, options.A.split(",")))
 K = len(alphas)
 
 if (options.O == "ss"):
   for i in range(0, options.N):
     multinomial = Sample.drawFromDirichlet(alphas)
-    print "\t".join(map(str, multinomial))
+    print("\t".join(map(str, multinomial)))
 else:
   for i in range(0, options.N):
     multinomial = Sample.drawFromDirichlet(alphas)
-    print "\t".join(map(str, multinomial))
+    print("\t".join(map(str, multinomial)))

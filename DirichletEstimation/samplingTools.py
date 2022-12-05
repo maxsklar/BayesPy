@@ -52,7 +52,7 @@ def drawFromDirichlet(alphas):
   multinomial = [0]*K
   for i in range(0, K): multinomial[i] = random.gammavariate(alphas[i], 1)
   S = sum(multinomial)
-  return map(lambda i: i/S, multinomial)
+  return list(map(lambda i: i/S, multinomial))
 
 # Draws a category from an unnormalized distribution
 def drawCategory(distribution):

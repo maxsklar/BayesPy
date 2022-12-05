@@ -21,16 +21,16 @@ parser.add_option('-O', '--outputType', dest='O', default='countMatrix', help='T
 (options, args) = parser.parse_args()
 
 
-alphas = map(float, options.A.split(","))
+alphas = list(map(float, options.A.split(",")))
 K = len(alphas)
 outputType = "countMatrix"
 if (options.O == "UMatrix"): outputType = options.O
 
 if (outputType == "UMatrix"):
   data = Sample.generateRandomDataset(options.M, options.N, alphas)
-  print "\t".join(map(str, data))
+  print("\t".join(list(map(str, data))))
 else:
   for i in range(0, options.N):
 	  multinomial = Sample.drawFromDirichlet(alphas)
 	  buckets = Sample.sampleFromMultinomial(multinomial, options.M)
-	  print "\t".join(map(str, buckets))
+	  print("\t".join(list(map(str, buckets))))
