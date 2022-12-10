@@ -29,3 +29,19 @@ python findDirichletPrior.py -H1,4,5 < /dev/null
 
 
 gammaDistTools is not used.  These functions will be used for a future gamma distribution estimations.
+
+
+
+Multinomial mixture model
+=========================
+
+DO NOT CONFUSE WITH LATENT DIRICHLET ALLOCATION! This is a much simpler model
+
+Here is a command that will test a multinomial mixture model:
+python writeSampleModel.py -A 0.3,0.3,0.3 -m 2,2 | python writeSampleDataset.py -N 10000 -M 500 | python3 inferMultinomialMixture.py -K 3 -C 2  
+
+writeSampleModel: will output a model (formatted in a particular way) to stdout. This is a random mulitnomial mixture model, which is pulled from 2 dirichlet distributions (each component selected from the A param dirichlet, and the mixture itself from the m param dirichlet)
+
+writeSampleDataset: will take the model as stdin, and then produce a dataset of a certain size given that model
+
+inferMultinomialMixture (with K being the number of categories and C the number of mixed components): this will try to figure out the model based on the dataset.
