@@ -7,12 +7,12 @@ logging.basicConfig(level=logging.DEBUG)
 model = MME.importFile("sampleModel.txt")
 
 dataset = []
-for i in range(0, 500): dataset.append(model.sampleRow(8))
+for i in range(0, 50000): dataset.append(model.sampleRow(8))
 
 hyperP = MME.MultinomialMixtureModelHyperparams(2, 3, [1, 1], [1, 1, 1])
 
 finalModel = MME.computeDirichletMixture(dataset, hyperP, 10)
 
-print "Final Model:"
-print finalModel.mixture
-print finalModel.multinomials
+print("Final Model:")
+print(finalModel.mixture)
+print(finalModel.multinomials)

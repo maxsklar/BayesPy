@@ -52,7 +52,6 @@ for line in open(options.featureListFile):
 dataPointAccum.finalizeFeatures()
 logging.debug(" -found " + str(dataPointAccum.numFeatures) + " features")
 
-
 logging.debug("Loading data")
 
 for line in sys.stdin:

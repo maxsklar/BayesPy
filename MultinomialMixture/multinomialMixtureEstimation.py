@@ -34,6 +34,7 @@ class MultinomialMixtureModel:
       self.mixture = mixture
   
   def outputToFileDontClose(self, out):
+    print("over here")
     out.write("\t".join(map(str, self.mixture)))
     out.write("\n")
     for d in self.multinomials: 
@@ -76,11 +77,14 @@ class MultinomialMixtureModel:
     logging.debug(str(self.mixture) + "*" + str(self.multinomials))
 
 def importFile(filename):
-  infile = file(filename, 'r')
-  reader = csv.reader(infile, delimiter='\t')
-  mixture = map(float, reader.next())
+  with open(filename, 'r') as infile:
+    return importFileFromHandle(infile)
+
+def importFileFromHandle(infile):
+  reader = csv.reader(infile, delimiter=',')
+  mixture = list(map(float, next(reader)))
   multinomials = []
-  for row in reader: multinomials.append(map(float, row))
+  for row in reader: multinomials.append(list(map(float, row)))
   K = 2
   if (len(multinomials) > 0): K = len(multinomials[0])
   return MultinomialMixtureModel(len(mixture), K, multinomials, mixture)
@@ -101,10 +105,10 @@ class MultinomialMixtureModelHyperparams:
 
 def logProbsToProbabilityDistribution(logProbs):
   highest = max(logProbs)
-  logProbs = map(lambda x: x - highest, logProbs)
-  unnormalized = map(lambda x: math.exp(x), logProbs)
+  logProbs = list(map(lambda x: x - highest, logProbs))
+  unnormalized = list(map(lambda x: math.exp(x), logProbs))
   S = sum(unnormalized)
-  return map(lambda x: float(x) / S, unnormalized)
+  return list(map(lambda x: float(x) / S, unnormalized))
 
 # Input counts: A K-dimensional count vector for a given row
 # we want to know which component of the mixture model best describes the counts
@@ -195,11 +199,8 @@ def initMixtureModel(data, hyperParams):
   
   multinomials = []
   for c in range(0, C):
-    multinomials.append([0.0]*K)
-    denominator = sum(data[c]) + sum(hyperParams.componentDirich)
-    for k in range(0, K): 
-      numerator = float(data[c][k]) + hyperParams.componentDirich[k]
-      multinomials[c][k] = numerator / denominator
+    randomMultinomial = ST.drawFromDirichlet(hyperParams.componentDirich)
+    multinomials.append(randomMultinomial)
 
   return MultinomialMixtureModel(C, K, multinomials, mixture)
 
