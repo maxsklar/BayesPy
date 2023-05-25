@@ -64,47 +64,23 @@ def priorHessianDiag(priorList, data):
       retVal[k] -= data.U[k][i] / (priorList[k] + i)**2
   return retVal
 
-	
 # Compute the next value to try here
 # http://research.microsoft.com/en-us/um/people/minka/papers/dirichlet/minka-dirichlet.pdf (eq 18)
+# https://www.researchgate.net/profile/Max-Sklar/publication/370927162_Algorithms_for_Multivariate_Newton-Raphson_for_Optimization/links/64698c0170202663165fd82a/Algorithms-for-Multivariate-Newton-Raphson-for-Optimization.pdf
 def getPredictedStep(hConst, hDiag, gradient):
   K = len(gradient)
-  numSum = 0.0
-  for i in range(0, K):
-    numSum += gradient[i] / hDiag[i]
-
-  denSum = 0.0
-  for i in range(0, K): denSum += 1.0 / hDiag[i]
-
+  numSum = sum(gradient[k] / hDiag[k] for k in range(K))
+  denSum = sum(1.0 / hDiag[k] for k in range(K))
   b = numSum / ((1.0/hConst) + denSum)
+  return [(b - gradient[k]) / hDiag[k] for k in range(K)]
 
-  retVal = [0]*K
-  for i in range(0, K): retVal[i] = (b - gradient[i]) / hDiag[i]
-  return retVal
-
-# Uses the diagonal hessian on the log-alpha values	
+# Uses the diagonal hessian on the log-alpha values
+# https://www.researchgate.net/profile/Max-Sklar/publication/370927162_Algorithms_for_Multivariate_Newton-Raphson_for_Optimization/links/64698c0170202663165fd82a/Algorithms-for-Multivariate-Newton-Raphson-for-Optimization.pdf
 def getPredictedStepAlt(hConst, hDiag, gradient, alphas):
-  K = len(gradient)
-  retVal = [0]*K
-
-  denominators = [(gradient[k] - alphas[k]*hDiag[k]) for k in range(0, K)]
-  for k in range(0, K):
-    if (denominators[k] == 0): return retVal
-
-  Z = 0
-  for k in range(0, K):
-    Z += alphas[k] / denominators[k]
-  Z *= hConst
-
-  Ss = [0]*K
-  for k in range(0, K):
-    Ss[k] = 1.0 / denominators[k] / (1 + Z)
-  S = sum(Ss)
-
-  for i in range(0, K): 
-    retVal[i] = gradient[i] / denominators[i] * (1 - hConst * alphas[i] * S)
-
-  return retVal
+  x = [(grad + alpha * h) for grad, alpha, h in zip(gradient, alphas, hDiag)]
+  Z = 1.0 / hConst + sum(alpha / xi for alpha, xi in zip(alphas, x))
+  S = sum(alpha * grad / xi for alpha, grad, xi in zip(alphas, gradient, x))
+  return [(S / Z - grad) / xi for grad, xi in zip(gradient, x)]
 
 #The priors and data are global, so we don't need to pass them in
 def getTotalLoss(trialPriors, data, hyperprior=0):
