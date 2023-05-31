@@ -83,8 +83,8 @@ logging.debug("Hyperprior (lambda) = " + str(hyperprior))
 # reader = csv.reader('test.csv', delimiter='\t')
 
 # using pandas
-# reader = pd.read_csv(sys.stdin, index_col=0, header=None)
-reader = pd.read_csv("test_big.csv", index_col=0, header=None)
+reader = pd.read_csv(sys.stdin, index_col=0, header=None)
+# reader = pd.read_csv("test.csv", index_col=0, header=None)
 
 logging.debug("Loading data")
 priors = np.zeros(K)
