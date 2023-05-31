@@ -113,6 +113,7 @@ def buildFullHessian(priors, data):
   return retVal
 
 def peshkinConfidenceInterval(priors, data, samplSz = 1000):
+  K = data.K
   hessian = buildFullHessian(priors, data)
 
   U, s, V = np.linalg.svd(hessian, full_matrices=True)
