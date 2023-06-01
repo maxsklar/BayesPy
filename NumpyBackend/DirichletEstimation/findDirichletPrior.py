@@ -1,19 +1,20 @@
 #!/usr/bin/python
 #
-# Finding the optimal dirichlet prior from counts
+# Finding the optimal dirichlet prior from counts, using numpy
 # By: Max Sklar
 # @maxsklar
 # https://github.com/maxsklar
 
-# Copyright 2012 Max Sklar
+# Copyright 2012 Max Sklar,
+#  2023 (numpy version) Jefkine Kafunah, Max Sklar
 
 # A sample of a file to pipe into this python script is given by test.csv
 
 # ex
-# cat test.csv | ./findDirichletPrior.py --sampleRate 1
+# cat test.csv | ./findDirichletPrior.py -d ","
 
 # Paper describing the basic formula:
-# http://research.microsoft.com/en-us/um/people/minka/papers/dirichlet/minka-dirichlet.pdf
+# https://arxiv.org/abs/1405.0099
 
 # Each columns is a different category, and it is assumed that the counts are pulled out of
 # a different distribution for each row.
@@ -53,6 +54,7 @@ parser.add_option('-H', '--hyperPrior', dest='H', default='0',
                   help='The hyperprior of the Dirichlet (number): a higher value indicates more bias towards tight dirichlets (very close to a single multinomial). Normally choose 0.')
 parser.add_option('-i', '--iterations', dest='iterations', default='50',
                   help='Stop at this number of iterations if the results have not converged.')
+parser.add_option('-d', '--delimiter', dest='delimiter', default='\t', help='The delimited of your CSV file (default is tab)')
 
 (options, args) = parser.parse_args()
 
@@ -74,17 +76,8 @@ hyperprior = float(options.H)
 
 logging.debug("Hyperprior (lambda) = " + str(hyperprior))
 
-
-# Load Data
-
-# using csv
-# csv.field_size_limit(1000000000)
-# reader = csv.reader(sys.stdin, delimiter='\t')
-# reader = csv.reader('test.csv', delimiter='\t')
-
-# using pandas
-reader = pd.read_csv(sys.stdin, index_col=0, header=None)
-# reader = pd.read_csv("test.csv", index_col=0, header=None)
+# Load Data using pandas
+reader = pd.read_csv(sys.stdin, index_col=0, header=None, delimiter=options.delimiter)
 
 logging.debug("Loading data")
 priors = np.zeros(K)
