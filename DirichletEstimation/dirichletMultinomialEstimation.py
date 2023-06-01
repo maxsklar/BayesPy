@@ -54,10 +54,7 @@ def priorGradient(priorList, data, hyperprior = 0):
 #The hessian is actually the sum of two matrices: a diagonal matrix and a constant-value matrix.
 #We'll write two functions to get both
 def priorHessianConst(priorList, data):
-	total = 0
-	for i in range(0, len(data.V)):
-		total += float(data.V[i]) / (sum(priorList) + i)**2
-	return total
+  return sum(float(v) / (sum(priorList) + i)**2 for i, v in enumerate(data.V))
 
 def priorHessianDiag(priorList, data):
   K = len(data.U)
@@ -108,10 +105,7 @@ def testTrialPriors(trialPriors, data, hyperprior=0):
 		
 	return getTotalLoss(trialPriors, data, hyperprior)
 	
-def sqVectorSize(v):
-	s = 0
-	for i in range(0, len(v)): s += v[i] ** 2
-	return s
+def sqVectorSize(v): return sum(x ** 2 for x in v)
 
 class CompressedRowData:
   def __init__(self, K):
