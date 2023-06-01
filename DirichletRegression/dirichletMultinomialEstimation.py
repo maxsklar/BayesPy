@@ -96,18 +96,6 @@ def predictStepLogSpace(gradient, priors, data):
 	totalHDiag = priorHessianDiag(priors, data)
 	return getPredictedStepAlt(totalHConst, totalHDiag, gradient, priors)
 
-
-def buildFullHessian(priors, data):
-  totalHConst = priorHessianConst(priors, data)
-  totalHDiag = priorHessianDiag(priors, data)
-  K = data.K
-  retVal = []
-  for k in range(0, K):
-    returnedRow = [totalHConst] * K
-    returnedRow[k] += totalHDiag[k]
-    retVal.append(returnedRow)
-  return retVal
-
 # Returns whether it's a good step, and the loss	
 def testTrialPriors(trialPriors, data, hyperprior=0):
 	for alpha in trialPriors: 
