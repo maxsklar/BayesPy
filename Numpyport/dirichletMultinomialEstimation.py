@@ -5,6 +5,9 @@
 # @maxsklar
 # https://github.com/maxsklar
 
+# Copyright 2012 Max Sklar,
+#  2023 (numpy version) Jefkine Kafunah, Max Sklar
+
 import random
 import logging
 import numpy as np
